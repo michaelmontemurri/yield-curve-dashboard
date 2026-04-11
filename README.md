@@ -44,7 +44,7 @@ kill -9 <PID>
 
 - Plots the latest available curve in the loaded dataset (automatically fetched from the [Official U.S. Treasury Site](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve")
 
-![Latest Yield Curve](images/latest_yield_curve.png)
+![Latest Yield Curve](images/yield_curve.png)
 
 ### Historical Comparison
 
