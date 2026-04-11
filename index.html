@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>U.S. Treasury Yield Curve Dashboard</title>
+    <meta
+      name="description"
+      content="Personal U.S. Treasury yield curve dashboard with curve comparisons, spread monitoring, and PCA."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script type="module" src="script.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="panel topbar">
+        <div class="topbar__headline">
+          <p class="eyebrow">Personal Fixed-Income Monitor</p>
+          <h1>U.S. Treasury Yield Curve Dashboard</h1>
+          <p class="topbar__description">
+            Latest curve, historical overlays, spread monitors, yield history,
+            and principal-component views from a single static page.
+          </p>
+        </div>
+
+        <div class="topbar__rail">
+          <div class="stat-grid">
+            <article class="stat-card">
+              <span class="stat-card__label">As Of</span>
+              <strong class="stat-card__value" id="asOfDate">--</strong>
+            </article>
+            <article class="stat-card">
+              <span class="stat-card__label">Rows Loaded</span>
+              <strong class="stat-card__value" id="rowsLoaded">--</strong>
+            </article>
+            <article class="stat-card">
+              <span class="stat-card__label">Active Source</span>
+              <strong class="stat-card__value" id="activeSource">Waiting</strong>
+            </article>
+          </div>
+
+          <div class="action-row">
+            <button class="button button--primary" id="refreshOfficialBtn" type="button">
+              Refresh Official Data
+            </button>
+            <button class="button" id="loadSnapshotBtn" type="button">
+              Load Bundled Snapshot
+            </button>
+            <button class="button" id="exportDatasetBtn" type="button">
+              Download Current CSV
+            </button>
+            <button class="button button--ghost" id="themeToggleBtn" type="button">
+              Dark Mode
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel source-panel">
+        <div class="source-panel__summary">
+          <div class="source-status">
+            <span class="status-badge" id="sourceBadge">Initializing</span>
+            <p class="status-message" id="statusMessage">
+              Waiting for the first dataset load.
+            </p>
+          </div>
+
+          <div class="source-actions">
+            <label class="file-trigger" for="csvFileInput">
+              <span>Upload Treasury CSV</span>
+            </label>
+            <input
+              id="csvFileInput"
+              class="visually-hidden"
+              type="file"
+              accept=".csv,text/csv"
+            />
+            <p class="source-note" id="sourceNote">
+              The dashboard prefers the official Treasury XML feed. If browser
+              fetches fail, use the bundled snapshot or drop in a CSV export.
+            </p>
+          </div>
+        </div>
+
+        <div class="dropzone" id="dropzone" aria-label="CSV dropzone">
+          Drop a Treasury CSV here to replace the current dataset.
+        </div>
+      </section>
+
+      <main class="dashboard-grid">
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Current Term Structure</p>
+              <h2>Latest Yield Curve</h2>
+            </div>
+            <div class="panel__meta">
+              <span class="panel__meta-label">Curve Date</span>
+              <strong id="latestCurveDate">--</strong>
+            </div>
+          </div>
+          <div class="chart chart--tall" id="latestCurveChart"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Historical Comparison</p>
+              <h2>Overlay Curves</h2>
+            </div>
+            <div class="panel__meta">
+              <span class="panel__meta-label">Resolved Date</span>
+              <strong id="comparisonActualDate">--</strong>
+            </div>
+          </div>
+
+          <div class="control-strip">
+            <label class="control-field">
+              <span>Historical Date</span>
+              <input id="historicalDateInput" type="date" />
+            </label>
+            <button class="button" id="setComparisonBtn" type="button">
+              Compare To Selected Date
+            </button>
+            <button class="button" id="addOverlayBtn" type="button">
+              Add Overlay
+            </button>
+            <button class="button" id="clearOverlaysBtn" type="button">
+              Clear Overlays
+            </button>
+            <button class="button" id="toggleDifferenceBtn" type="button">
+              Toggle Bps Difference
+            </button>
+          </div>
+
+          <div class="preset-grid" id="presetButtons">
+            <button class="chip-button" data-preset="latest" type="button">Latest</button>
+            <button class="chip-button" data-preset="1d" type="button">One Day Ago</button>
+            <button class="chip-button" data-preset="1w" type="button">1 Week Ago</button>
+            <button class="chip-button" data-preset="1m" type="button">1 Month Ago</button>
+            <button class="chip-button" data-preset="3m" type="button">3 Months Ago</button>
+            <button class="chip-button" data-preset="1y" type="button">1 Year Ago</button>
+            <button class="chip-button" data-preset="maxSteepening" type="button">
+              Max Steepening
+            </button>
+            <button class="chip-button" data-preset="maxInversion" type="button">
+              Max Inversion
+            </button>
+          </div>
+
+          <div class="overlay-pills" id="overlayPills"></div>
+          <p class="panel__hint" id="comparisonRequestedDate">
+            Select a date to compare against the latest curve. Weekend and
+            holiday requests resolve to the nearest prior trading day.
+          </p>
+          <div class="chart chart--tall" id="comparisonCurveChart"></div>
+          <div class="difference-chart" id="differenceChartWrap" hidden>
+            <div class="chart chart--short" id="differenceChart"></div>
+          </div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Spread Monitor</p>
+              <h2>Key Curve Spreads</h2>
+            </div>
+          </div>
+
+          <div class="spread-grid">
+            <article class="spread-card" id="spreadCard-10Y2Y">
+              <p class="spread-card__label">10Y-2Y</p>
+              <strong class="spread-card__value" id="spreadValue-10Y2Y">--</strong>
+              <p class="spread-card__subvalue" id="spreadNote-10Y2Y">--</p>
+              <div class="chart chart--spark" id="spreadSpark-10Y2Y"></div>
+            </article>
+
+            <article class="spread-card" id="spreadCard-30Y10Y">
+              <p class="spread-card__label">30Y-10Y</p>
+              <strong class="spread-card__value" id="spreadValue-30Y10Y">--</strong>
+              <p class="spread-card__subvalue" id="spreadNote-30Y10Y">--</p>
+              <div class="chart chart--spark" id="spreadSpark-30Y10Y"></div>
+            </article>
+
+            <article class="spread-card" id="spreadCard-5Y3M">
+              <p class="spread-card__label">5Y-3M</p>
+              <strong class="spread-card__value" id="spreadValue-5Y3M">--</strong>
+              <p class="spread-card__subvalue" id="spreadNote-5Y3M">--</p>
+              <div class="chart chart--spark" id="spreadSpark-5Y3M"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Yield History</p>
+              <h2>Selected Maturity Time Series</h2>
+            </div>
+          </div>
+
+          <div class="toggle-group" id="historyMaturityToggles"></div>
+          <div class="control-strip control-strip--history">
+            <div class="button-group" id="historyYAxisButtons">
+              <button class="chip-button is-active" data-history-y-axis="full" type="button">
+                Full-Series Y
+              </button>
+              <button class="chip-button" data-history-y-axis="visible" type="button">
+                Visible-Window Y
+              </button>
+            </div>
+            <button class="button button--ghost" id="historyResetViewBtn" type="button">
+              Reset Time Window
+            </button>
+          </div>
+          <p class="panel__hint" id="historyAxisHint">
+            Y-axis uses the full selected history. Switch to Visible-Window Y after zooming the date range to rescale the plot.
+          </p>
+          <div class="history-axis-window" id="historyAxisWindow" hidden>
+            <label class="control-field control-field--slider">
+              <span>Y Min</span>
+              <input id="historyYMinSlider" type="range" />
+              <strong id="historyYMinValue">--</strong>
+            </label>
+            <label class="control-field control-field--slider">
+              <span>Y Max</span>
+              <input id="historyYMaxSlider" type="range" />
+              <strong id="historyYMaxValue">--</strong>
+            </label>
+            <button class="button button--ghost" id="historyAutoYBtn" type="button">
+              Auto Fit Visible Y
+            </button>
+          </div>
+          <div class="chart chart--tall" id="historyYieldChart"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Principal Components</p>
+              <h2>PCA Loadings And Regime Comparison</h2>
+            </div>
+          </div>
+
+          <div class="control-strip">
+            <label class="control-field">
+              <span>PCA Mode</span>
+              <select id="pcaModeSelect">
+                <option value="fullSample">Full Sample</option>
+                <option value="rollingWindow">Rolling Window</option>
+                <option value="customRange">Custom Date Range</option>
+                <option value="presetRegimes">Preset Regimes</option>
+              </select>
+            </label>
+
+            <label class="control-field">
+              <span>Data Transformation</span>
+              <select id="pcaTransformationSelect">
+                <option value="levels">Levels</option>
+                <option value="differences">Daily Differences</option>
+              </select>
+            </label>
+
+            <div class="field-cluster" id="pcaRollingControls" hidden>
+              <label class="control-field">
+                <span>Window Length (Years)</span>
+                <input id="pcaRollingYears" type="number" min="1" max="20" step="1" value="5" />
+              </label>
+              <label class="control-field">
+                <span>Inspect Basis Date</span>
+                <input id="pcaRollingBasisDate" type="date" />
+              </label>
+            </div>
+
+            <div class="field-cluster" id="pcaCustomControls" hidden>
+              <label class="control-field">
+                <span>Fit Start</span>
+                <input id="pcaFitStartDate" type="date" />
+              </label>
+              <label class="control-field">
+                <span>Fit End</span>
+                <input id="pcaFitEndDate" type="date" />
+              </label>
+            </div>
+
+            <div class="field-cluster" id="pcaPresetControls" hidden>
+              <label class="control-field">
+                <span>Regime Preset</span>
+                <select id="pcaPresetRegime"></select>
+              </label>
+            </div>
+
+            <button class="button" id="pcaApplyModeBtn" type="button">
+              Apply PCA Mode
+            </button>
+          </div>
+          <p class="panel__hint" id="pcaPresetSummary" hidden></p>
+
+          <p class="panel__hint" id="pcaExplanatoryNote">
+            Full-sample PCA gives a stable long-run basis. Rolling and regime
+            PCA show how the factor structure changes across monetary regimes
+            and make non-stationarity visible.
+          </p>
+          <p class="panel__hint" id="pcaModeSummary">
+            Full-sample PCA is active.
+          </p>
+          <p class="panel__hint" id="pcaControlMessage" hidden></p>
+          <div class="summary-grid" id="pcaSummaryGrid">
+            <article class="summary-card">
+              <span class="summary-card__label">Basis</span>
+              <strong class="summary-card__value" id="pcaSummaryBasis">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Fit Windows</span>
+              <strong class="summary-card__value" id="pcaSummaryFitRange">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Rows Used</span>
+              <strong class="summary-card__value" id="pcaSummaryRows">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Transformation</span>
+              <strong class="summary-card__value" id="pcaSummaryTransform">--</strong>
+            </article>
+            <article class="summary-card summary-card--wide">
+              <span class="summary-card__label">Explained Variance</span>
+              <strong class="summary-card__value" id="pcaSummaryVariance">--</strong>
+            </article>
+          </div>
+          <div class="chart chart--medium" id="pcaLoadingsChart"></div>
+          <div class="chart chart--short" id="pcaVarianceChart"></div>
+
+          <div id="pcaRollingHeatmapWrap" hidden>
+            <p class="panel__hint">
+              Rolling-mode heatmap shows how PC loadings evolve through time for
+              the trailing-window basis.
+            </p>
+            <div class="chart chart--heatmap" id="pcaRollingHeatmapChart"></div>
+          </div>
+
+          <details class="debug-panel" id="pcaDebugPanel">
+            <summary>Validation / Debug</summary>
+            <ul class="validation-list" id="pcaValidationList"></ul>
+          </details>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Component Scores</p>
+              <h2>PC1, PC2, and PC3 Through Time</h2>
+            </div>
+          </div>
+
+          <div class="control-strip">
+            <div class="button-group" id="pcaRangeButtons">
+              <button class="chip-button is-active" data-range="all" type="button">
+                All History
+              </button>
+              <button class="chip-button" data-range="5y" type="button">5 Years</button>
+              <button class="chip-button" data-range="1y" type="button">1 Year</button>
+              <button class="chip-button" data-range="3m" type="button">3 Months</button>
+            </div>
+
+            <label class="control-field">
+              <span>Custom Start</span>
+              <input id="pcaStartDate" type="date" />
+            </label>
+            <label class="control-field">
+              <span>Custom End</span>
+              <input id="pcaEndDate" type="date" />
+            </label>
+            <button class="button" id="pcaApplyRangeBtn" type="button">
+              Apply Custom Range
+            </button>
+          </div>
+
+          <p class="panel__hint">
+            Click any point on a score chart to update the curve comparison
+            panel with that date. In rolling mode, the clicked date also
+            becomes the active rolling-basis inspection date.
+          </p>
+
+          <div class="stacked-charts">
+            <div class="chart chart--medium" id="pc1Chart"></div>
+            <div class="chart chart--medium" id="pc2Chart"></div>
+            <div class="chart chart--medium" id="pc3Chart"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
