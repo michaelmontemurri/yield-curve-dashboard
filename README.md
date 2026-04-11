@@ -4,8 +4,7 @@ Static frontend dashboard for inspecting the U.S. Treasury Daily Treasury Yield 
 
 I built this with Codex for daily personal use, because I prefer a plot to a table and I wanted a more customizable version of https://www.ustreasuryyieldcurve.com/ for following U.S. Treasury yields. 
 
-It's a simple, locally run web app that fetches the latest yields from the Official U.S. Treasury Daily Treasury Par Yield Curve Rates page:
-  [home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve) 
+It's a simple, locally run web app that fetches the latest yields from the [Official U.S. Treasury Daily Treasury Par Yield Curve Rates page](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve) 
 and generates visuals.
 
 
@@ -13,8 +12,7 @@ and generates visuals.
 
 Live fetch path used by the app:
 
-- Official paginated Treasury XML feed for the full history:
-  [home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=all&page=0](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=all&page=0)
+- [Official paginated Treasury XML feed for the full history](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=all&page=0)
 
 Fallbacks:
 
