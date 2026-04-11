@@ -100,12 +100,12 @@ Preset regimes can span multiple disjoint windows. The PCA fit uses the union of
 
 ### Levels Vs Daily Differences
 
-- `Levels`  fit PCA on the yield curve level matrix after mean-centering. Captures the dominant structure of the curve level across time.
-- `Daily Differences` fit PCA on first differences of yields, maturity by maturity, after mean-centering the differenced matrix. Useful when secular trend shifts dominate the sample and you want to isolate day-to-day co-movement instead.
+- `Levels`L  fit PCA on the yield curve level matrix after mean-centering. Captures the dominant structure of the curve level across time.
+- `Daily Differences`L fit PCA on first differences of yields, maturity by maturity, after mean-centering the differenced matrix. Useful when secular trend shifts dominate the sample and you want to isolate day-to-day co-movement instead.
 
 #### Why Care About This?
 
-Let's look at the 2022–2023 hiking cycle. From a macro perspective:
+Let's look at the 2022–2023 rate hiking cycle. From a macro perspective:
 
 - The FED executed one of the fastest hiking cycles in decades
 - The entire yield curve moved upward
@@ -115,11 +115,11 @@ But when you run PCA on yield levels over this window, you see:
 
 ![Levels PCA](images/levels_pca_2022_2023.png)
 
-PC1 dominates (~96.4% of variance)
-PC2 collapses (~2.8% of variance)
+PC1 dominates (~96.2% of variance)
+PC2 collapses (~3.2% of variance)
 PC3 negligible (~0.5%)
 
-This looks wrong. In a hiking cycle, we expect the front end to be more volatile than the tail, and so we would expect PC2 to capture more variance.
+This looks off. Why is the steepening axis capturing so little variance? In a hiking cycle, we expect the front end to be more volatile than the tail, and so we would expect PC2 to capture more variance.
 
 But during 2022–2023, the PC1 scores were consistently rising:
 
@@ -147,22 +147,23 @@ PC3 becomes visible again (~4.9%)
 
 This reflects the fact that day-to-day moves during the hiking cycle were not purely parallel shifts
 
-Levels PCA captures macro regime shifts dominated by large structural repricing (e.g. ZLB → 5% rates)
-Daily Differences PCA captures trading-relevant dynamics how different parts of the curve move relative to each other
+Levels PCA captures macro regime shifts dominated by large structural repricing, wher Daily Differences PCA captures more trading-relevant dynamics of how different parts of the curve move relative to each other
 
 ### Preset Regimes
 
 It is interesting to compare the regime-dependent PCs to the global baselines.
 
-For example, lets use the preset regime "Tightening Cycles · Bear Flattener", where the included windows are: 2004–2006, 2016–2018, 2022–2023.
+For example, lets use the preset regime "Tightening Cycles - Bear Flattener", where the included windows are: 2004–2006, 2016–2018, 2022–2023.
 
 In these environments, what would we expect to see in the level PCs?
 - Policy expectations get repriced, and these are embedded in the short-end (1M-2Y), so we expect the head to rise sharply. 
-- THe long end yields (10Y-30Y) are rising, but more modeslty because theyre constrained by long-run inflation expectations, growing recession risk, etc. So what does this imply for the covariance structure between yields (what the PCs capture)?
+- THe long end yields (10Y-30Y) are rising, but more modestly because theyre constrained by long-run inflation expectations, growing recession risk, etc. So what does this imply for the covariance structure between yields (what the PCs capture)?
 - Variance gets concentrated at the front end and movements get less uniform across maturities. So what do we expect from the level PCs:
 
 -PC1 (shift): tilt toward shorter maturities, since most of the cross sectional variance is driven by the front end repricing rather than parallel shift across the curve.
+
 -PC2 (Slope): Would become sharper and more front-end driven, plateauing in the long maturities to capture the divergence between rising short rates and stable long rates
+
 -PC3 (Curvature): Would expect the hump to shift forward to reflect the biggest local distortion occuring between 2Y-5Y yields.
 
 ![Levels PCA Tightening](images/levels_pca_tightening.png)
