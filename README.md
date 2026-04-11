@@ -2,7 +2,7 @@
 
 Static frontend dashboard for inspecting the U.S. Treasury Daily Treasury Yield Curve Rates series from a browser, with no backend and no database.
 
-I built this with Codex for daily personal use, because I prefer a plot to a table and I wanted a more customizable version of https://www.ustreasuryyieldcurve.com/ for following U.S. Treasuries. It's a simple locally run site that fetches the latest yields from the Official U.S. Treasury Daily Treasury Par Yield Curve Rates page:
+I built this with Codex for daily personal use, because I prefer a plot to a table and I wanted a more customizable version of https://www.ustreasuryyieldcurve.com/ for following U.S. Treasury yields. It's a simple locally run site that fetches the latest yields from the Official U.S. Treasury Daily Treasury Par Yield Curve Rates page:
   [home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve) 
 and generates visuals.
 
