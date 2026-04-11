@@ -69,7 +69,7 @@ Each card shows latest spread in basis points, in percent, and a compact sparkli
 ### Historical Yields
 
 - Time series of selected maturity yields with range slider
-![selected_maturities](images/key_spreads.png)
+![selected_maturities](images/selected_maturities.png)
 
 ## PCA Loadings
 
