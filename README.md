@@ -73,11 +73,6 @@ Each card shows latest spread in basis points, in percent, and a compact sparkli
 
 ## PCA Loadings
 
-The PCA panel can run on either yield levels or first order daily differences.
-
-- `Levels`: fit PCA on the yield curve level matrix after mean-centering
-- `Daily Differences`: fit PCA on first differences of yields, maturity by maturity, after mean-centering the differenced matrix
-
 Method used in `script.js`:
 
 1. Build the historical daily matrix from maturities with sufficient coverage.
@@ -92,17 +87,6 @@ Method used in `script.js`:
    - PC2: slope / steepener
    - PC3: curvature / twist
 
-The PCA panel reports:
-
-- maturities used
-- rows used
-- explained variance for PC1, PC2, and PC3
-- loadings across maturities
-- score time series with range filters
-- comparison between the full-sample basis and the currently selected rolling/regime basis
-- rolling loading heatmaps to highlight non-stationarity when rolling mode is active
-- transformation-aware summaries so you can see whether the basis was fit on levels or daily changes
-
 ### Regime-Aware PCA
 
 You can choose:
@@ -112,21 +96,12 @@ You can choose:
 - `Custom Date Range`: PCA fit only on the chosen start/end window
 - `Preset Regimes`: named environment classifications such as `Tightening Cycles`, `Crisis Easing`, `ZLB / QE`, `Restrictive Plateaus`, `Transitional / Anomalous`, and `All History`
 
-Rolling mode uses the selected trailing window length in years and then:
-
-1. fits PCA on complete rows inside each trailing window
-2. orients PC1/PC2/PC3 toward level, slope, and curvature
-3. aligns signs to the previous rolling basis by maximizing dot-product continuity
-4. projects the current day’s curve onto that day’s rolling basis
-
-This is intended to make factor non-stationarity visible rather than assuming a single fixed basis across every rate regime.
-
-Preset regimes can span multiple disjoint windows. The PCA fit uses the union of those windows only, and the score charts keep null gaps between excluded years so the plotted lines break across out-of-regime periods instead of bridging them.
+Preset regimes can span multiple disjoint windows. The PCA fit uses the union of those windows only.
 
 ### Levels Vs Daily Differences
 
-- `Levels` PCA captures the dominant structure of the curve level across time.
-- `Daily Differences` PCA is useful when secular trend shifts dominate the sample and you want to isolate day-to-day co-movement instead.
+- `Levels`  fit PCA on the yield curve level matrix after mean-centering. Captures the dominant structure of the curve level across time.
+- `Daily Differences` fit PCA on first differences of yields, maturity by maturity, after mean-centering the differenced matrix. Useful when secular trend shifts dominate the sample and you want to isolate day-to-day co-movement instead.
 
 #### Why Care About This?
 
