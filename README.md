@@ -25,7 +25,7 @@ Fallbacks:
 To run it in the background without needing to restart from the terminal, from the project directory:
 
 ```bash
-python3 -m http.server 8000 &
+nohup python3 -m http.server 8000 > server.log 2>&1 &
 ```
 
 Then open:
