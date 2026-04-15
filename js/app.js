@@ -520,7 +520,12 @@ async function fetchOfficialXmlHistory(onProgress) {
     }
 
     rows.push(...pageRows);
-
+    if (page % 10 === 0) {
+      console.log(
+        `Page ${page}, total rows: ${rows.length}, latest date on this page:`,
+        pageRows.at(-1)?.date
+      );
+    }
     if (typeof onProgress === "function") {
       onProgress(page, rows.length);
     }
@@ -529,7 +534,10 @@ async function fetchOfficialXmlHistory(onProgress) {
   if (!rows.length) {
     throw new Error("The Treasury XML feed returned no rows.");
   }
-
+  console.log(
+    "FINAL FETCHED RAW DATES:",
+    rows.slice(-5).map(r => r.date)
+  );
   return rows;
 }
 
@@ -725,12 +733,19 @@ function prepareRecords(records) {
   if (!prepared.length) {
     throw new Error("No usable yield-curve rows were found in the dataset.");
   }
-
+  console.log(
+    "PREPARED DATES (TAIL):",
+    prepared.slice(-5).map(r => r.date)
+  );
   return prepared;
 }
 
 function applyDataset(records, sourceMeta) {
   state.records = records;
+  console.log(
+  "LATEST PROCESSED RECORD:",
+  records.at(-1)
+);
   state.recordByDate = new Map(records.map((record) => [record.date, record]));
   state.latestRecord = records.at(-1);
   state.source = sourceMeta;
@@ -753,9 +768,9 @@ function applyDataset(records, sourceMeta) {
       .filter((date) => date && date !== state.latestRecord.date)
   );
 
-  const desiredComparisonDate =
-    state.selectedComparisonRequestedDate ||
-    shiftIsoDate(state.latestRecord.date, { days: -CONFIG.defaultComparisonOffsetDays });
+  const desiredComparisonDate = shiftIsoDate(state.latestRecord.date, {
+    days: -CONFIG.defaultComparisonOffsetDays,
+  });
 
   const resolvedComparison = resolveNearestPriorDate(desiredComparisonDate) || state.latestRecord;
   state.selectedComparisonRequestedDate = desiredComparisonDate;

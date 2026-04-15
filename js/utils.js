@@ -86,11 +86,15 @@ function isoDateToTimestamp(date) {
 }
 
 function formatHumanDate(date) {
+  if (!date) return "--";
+
+  const [year, month, day] = date.split("-").map(Number);
+
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(`${date}T00:00:00Z`));
+  }).format(new Date(year, month - 1, day));
 }
 
 function formatBasisPoints(value) {

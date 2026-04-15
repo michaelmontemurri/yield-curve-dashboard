@@ -5,14 +5,14 @@ const CONFIG = {
   officialSourcePage:
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve",
   bundledSnapshotPath: new URL("../data/sample_treasury_yields.csv", import.meta.url).href,
-  maxOfficialPages: 60,
+  maxOfficialPages: 200,
   pcaCoverageThreshold: 0.8,
   pcaComponentCount: 3,
   pcaDefaultRollingYears: 5,
   pcaRollingMinRows: 60,
   sparklineLookback: 260,
   defaultHistoryMaturities: ["2Y", "10Y", "30Y"],
-  defaultComparisonOffsetDays: 30,
+  defaultComparisonOffsetDays: 1,
   storageKeys: {
     overlays: "yield-curve-dashboard.overlay-dates",
     historyMaturities: "yield-curve-dashboard.history-maturities",
