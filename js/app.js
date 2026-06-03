@@ -110,7 +110,6 @@ function cacheDom() {
   dom.themeToggleBtn = document.getElementById("themeToggleBtn");
   dom.csvFileInput = document.getElementById("csvFileInput");
   dom.dropzone = document.getElementById("dropzone");
-  dom.latestCurveDate = document.getElementById("latestCurveDate");
   dom.historicalDateInput = document.getElementById("historicalDateInput");
   dom.setComparisonBtn = document.getElementById("setComparisonBtn");
   dom.addOverlayBtn = document.getElementById("addOverlayBtn");
@@ -120,7 +119,6 @@ function cacheDom() {
   dom.comparisonActualDate = document.getElementById("comparisonActualDate");
   dom.overlayPills = document.getElementById("overlayPills");
   dom.presetButtons = document.getElementById("presetButtons");
-  dom.latestCurveChart = document.getElementById("latestCurveChart");
   dom.comparisonCurveChart = document.getElementById("comparisonCurveChart");
   dom.differenceChartWrap = document.getElementById("differenceChartWrap");
   dom.differenceChart = document.getElementById("differenceChart");

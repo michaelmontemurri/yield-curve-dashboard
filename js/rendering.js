@@ -50,7 +50,6 @@ function renderAll() {
     }
   };
 
-  safeRender(renderLatestCurveChart);
   safeRender(renderComparisonPanel);
   safeRender(renderSpreadCards);
   safeRender(renderHistoricalYieldChart);
@@ -66,7 +65,6 @@ function renderEmptyDashboard() {
   dom.pcaRollingHeatmapWrap.hidden = true;
   renderPcaSummaryCards(null);
   updateHistoryAxisControls();
-  renderEmptyChart(dom.latestCurveChart, message);
   renderEmptyChart(dom.comparisonCurveChart, message);
   renderEmptyChart(dom.differenceChart, message);
   renderEmptyChart(dom.historyYieldChart, message);
@@ -82,40 +80,6 @@ function renderEmptyDashboard() {
     document.getElementById(`spreadNote-${spread.id}`).textContent = "--";
     renderEmptyChart(document.getElementById(`spreadSpark-${spread.id}`), "Waiting for data");
   });
-}
-
-function renderLatestCurveChart() {
-  if (!state.latestRecord) {
-    renderEmptyChart(dom.latestCurveChart, "No current curve available.");
-    return;
-  }
-
-  dom.latestCurveDate.textContent = formatHumanDate(state.latestRecord.date);
-
-  const palette = currentPalette();
-  const trace = buildCurveTrace(state.latestRecord, {
-    name: formatHumanDate(state.latestRecord.date),
-    color: palette.latest,
-    width: 3,
-  });
-
-  const yields = trace.y;
-  const [minYield, maxYield] = paddedRange(yields, 0.18);
-
-  renderPlot(
-    dom.latestCurveChart,
-    [trace],
-    buildBaseLayout({
-      hovermode: "closest",
-      margin: { t: 24, r: 20, b: 52, l: 64 },
-      xaxis: { title: { text: "Maturity" }, type: "category" },
-      yaxis: {
-        title: { text: "Yield (%)" },
-        range: [minYield, maxYield],
-      },
-      showlegend: false,
-    })
-  );
 }
 
 function renderComparisonPanel() {
