@@ -16,7 +16,7 @@
     />
     <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <script type="module" src="script.js"></script>
+    <script type="module" src="script.js?v=spread-controls-20260603-6"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -166,28 +166,64 @@
             </div>
           </div>
 
-          <div class="spread-grid">
-            <article class="spread-card" id="spreadCard-10Y2Y">
-              <p class="spread-card__label">10Y-2Y</p>
-              <strong class="spread-card__value" id="spreadValue-10Y2Y">--</strong>
-              <p class="spread-card__subvalue" id="spreadNote-10Y2Y">--</p>
-              <div class="chart chart--spark" id="spreadSpark-10Y2Y"></div>
-            </article>
-
-            <article class="spread-card" id="spreadCard-30Y10Y">
-              <p class="spread-card__label">30Y-10Y</p>
-              <strong class="spread-card__value" id="spreadValue-30Y10Y">--</strong>
-              <p class="spread-card__subvalue" id="spreadNote-30Y10Y">--</p>
-              <div class="chart chart--spark" id="spreadSpark-30Y10Y"></div>
-            </article>
-
-            <article class="spread-card" id="spreadCard-5Y3M">
-              <p class="spread-card__label">5Y-3M</p>
-              <strong class="spread-card__value" id="spreadValue-5Y3M">--</strong>
-              <p class="spread-card__subvalue" id="spreadNote-5Y3M">--</p>
-              <div class="chart chart--spark" id="spreadSpark-5Y3M"></div>
-            </article>
+          <div class="field-cluster spread-controls" aria-label="Spread selector">
+            <label class="control-field">
+              <span>First leg</span>
+              <select id="spreadLeftSelect">
+                <option value="1M">1M</option>
+                <option value="3M">3M</option>
+                <option value="6M">6M</option>
+                <option value="1Y">1Y</option>
+                <option value="2Y">2Y</option>
+                <option value="3Y">3Y</option>
+                <option value="5Y">5Y</option>
+                <option value="7Y">7Y</option>
+                <option value="10Y" selected>10Y</option>
+                <option value="20Y">20Y</option>
+                <option value="30Y">30Y</option>
+              </select>
+            </label>
+            <label class="control-field">
+              <span>Second leg</span>
+              <select id="spreadRightSelect">
+                <option value="1M">1M</option>
+                <option value="3M">3M</option>
+                <option value="6M">6M</option>
+                <option value="1Y">1Y</option>
+                <option value="2Y" selected>2Y</option>
+                <option value="3Y">3Y</option>
+                <option value="5Y">5Y</option>
+                <option value="7Y">7Y</option>
+                <option value="10Y">10Y</option>
+                <option value="20Y">20Y</option>
+                <option value="30Y">30Y</option>
+              </select>
+            </label>
+            <label class="control-field">
+              <span>Third leg</span>
+              <select id="spreadFlyBackSelect">
+                <option value="1M">1M</option>
+                <option value="3M">3M</option>
+                <option value="6M">6M</option>
+                <option value="1Y">1Y</option>
+                <option value="2Y">2Y</option>
+                <option value="3Y">3Y</option>
+                <option value="5Y">5Y</option>
+                <option value="7Y">7Y</option>
+                <option value="10Y" selected>10Y</option>
+                <option value="20Y">20Y</option>
+                <option value="30Y">30Y</option>
+              </select>
+            </label>
+            <button class="button button--primary" id="addSpreadBtn" type="button">Add Spread</button>
+            <button class="button" id="addButterflyBtn" type="button">Add Butterfly</button>
+            <button class="button button--ghost" id="resetSpreadsBtn" type="button">Reset Defaults</button>
           </div>
+          <p class="panel__hint" id="spreadControlHint">
+            Showing default spread set. Butterfly = 2 x second leg - first leg - third leg.
+          </p>
+
+          <div class="spread-grid" id="spreadGrid"></div>
         </section>
 
         <section class="panel panel--wide">

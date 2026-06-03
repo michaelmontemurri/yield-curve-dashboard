@@ -16,6 +16,7 @@ const CONFIG = {
   storageKeys: {
     overlays: "yield-curve-dashboard.overlay-dates",
     historyMaturities: "yield-curve-dashboard.history-maturities",
+    spreadDefinitions: "yield-curve-dashboard.spread-definitions",
     theme: "yield-curve-dashboard.theme",
   },
 };
@@ -35,9 +36,16 @@ const MATURITY_DEFS = [
 ];
 
 const SPREAD_DEFS = [
-  { id: "10Y2Y", label: "10Y-2Y", left: "10Y", right: "2Y" },
-  { id: "30Y10Y", label: "30Y-10Y", left: "30Y", right: "10Y" },
-  { id: "5Y3M", label: "5Y-3M", left: "5Y", right: "3M" },
+  { id: "10Y2Y", type: "spread", label: "2s10s", left: "10Y", right: "2Y" },
+  { id: "30Y5Y", type: "spread", label: "5s30s", left: "30Y", right: "5Y" },
+  {
+    id: "fly_2Y_5Y_10Y",
+    type: "butterfly",
+    label: "2s5s10s",
+    front: "2Y",
+    belly: "5Y",
+    back: "10Y",
+  },
 ];
 
 const PALETTES = {
@@ -106,6 +114,7 @@ const state = {
   selectedComparisonDate: null,
   selectedComparisonRequestedDate: null,
   overlayDates: [],
+  spreadDefs: SPREAD_DEFS.map((spread) => ({ ...spread })),
   spreadSeries: {},
   extremeSpreadDates: {},
   historyMaturities: new Set(CONFIG.defaultHistoryMaturities),
@@ -167,6 +176,138 @@ function persistHistoryMaturities() {
   );
 }
 
+function normalizeSpreadDefinitions(spreads) {
+  const validMaturities = new Set(MATURITY_DEFS.map((definition) => definition.key));
+  const seen = new Set();
+  const normalized = [];
+
+  (Array.isArray(spreads) ? spreads : []).forEach((spread) => {
+    const type = spread?.type === "butterfly" ? "butterfly" : "spread";
+
+    if (type === "butterfly") {
+      const front = typeof spread?.front === "string" ? spread.front : "";
+      const belly = typeof spread?.belly === "string" ? spread.belly : "";
+      const back = typeof spread?.back === "string" ? spread.back : "";
+
+      if (
+        !validMaturities.has(front) ||
+        !validMaturities.has(belly) ||
+        !validMaturities.has(back) ||
+        new Set([front, belly, back]).size !== 3
+      ) {
+        return;
+      }
+
+      const flyId = `fly_${front}_${belly}_${back}`;
+      if (seen.has(flyId)) {
+        return;
+      }
+
+      seen.add(flyId);
+      normalized.push({
+        id: flyId,
+        type,
+        label: formatButterflyLabel(front, belly, back),
+        front,
+        belly,
+        back,
+      });
+      return;
+    }
+
+    const left = typeof spread?.left === "string" ? spread.left : "";
+    const right = typeof spread?.right === "string" ? spread.right : "";
+
+    if (!validMaturities.has(left) || !validMaturities.has(right) || left === right) {
+      return;
+    }
+
+    const pairId = `${left}_${right}`;
+    if (seen.has(pairId)) {
+      return;
+    }
+
+    seen.add(pairId);
+    const defaultSpread = SPREAD_DEFS.find(
+      (definition) => definition.left === left && definition.right === right
+    );
+    normalized.push({
+      id: defaultSpread?.id || pairId,
+      type,
+      label: `${left}-${right}`,
+      left,
+      right,
+    });
+  });
+
+  return normalized.length ? normalized : SPREAD_DEFS.map((spread) => ({ ...spread }));
+}
+
+function loadSpreadDefinitions() {
+  const stored = localStorage.getItem(CONFIG.storageKeys.spreadDefinitions);
+  if (!stored) {
+    return SPREAD_DEFS.map((spread) => ({ ...spread }));
+  }
+
+  try {
+    const parsed = JSON.parse(stored);
+    return isLegacyDefaultSpreadSet(parsed)
+      ? SPREAD_DEFS.map((spread) => ({ ...spread }))
+      : normalizeSpreadDefinitions(parsed);
+  } catch (_error) {
+    return SPREAD_DEFS.map((spread) => ({ ...spread }));
+  }
+}
+
+function isLegacyDefaultSpreadSet(spreads) {
+  if (!Array.isArray(spreads) || spreads.length !== 3) {
+    return false;
+  }
+
+  const legacyPairs = ["10Y_2Y", "30Y_10Y", "5Y_3M"].sort().join("|");
+  const storedPairs = spreads
+    .filter((spread) => spread?.type !== "butterfly")
+    .map((spread) => `${spread?.left || ""}_${spread?.right || ""}`)
+    .sort()
+    .join("|");
+
+  return storedPairs === legacyPairs;
+}
+
+function persistSpreadDefinitions() {
+  localStorage.setItem(
+    CONFIG.storageKeys.spreadDefinitions,
+    JSON.stringify(
+      state.spreadDefs.map((spread) =>
+        spread.type === "butterfly"
+          ? {
+              type: "butterfly",
+              front: spread.front,
+              belly: spread.belly,
+              back: spread.back,
+            }
+          : {
+              type: "spread",
+              left: spread.left,
+              right: spread.right,
+            }
+      )
+    )
+  );
+}
+
+function formatButterflyLabel(front, belly, back) {
+  return [front, belly, back].map(formatButterflyLeg).join("");
+}
+
+function formatButterflyLeg(key) {
+  if (key.endsWith("Y")) {
+    return `${key.slice(0, -1)}s`;
+  }
+
+  return key.toLowerCase();
+}
+
 export {
   CONFIG,
   MATURITY_DEFS,
@@ -178,4 +319,8 @@ export {
   persistOverlayDates,
   loadOverlayDates,
   persistHistoryMaturities,
+  normalizeSpreadDefinitions,
+  loadSpreadDefinitions,
+  persistSpreadDefinitions,
+  formatButterflyLabel,
 };

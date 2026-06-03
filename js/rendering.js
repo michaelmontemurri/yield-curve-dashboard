@@ -7,7 +7,9 @@ import {
   currentPalette,
   persistHistoryMaturities,
   persistOverlayDates,
-} from "./core.js";
+  persistSpreadDefinitions,
+  formatButterflyLabel,
+} from "./core.js?v=spread-controls-20260603-6";
 import {
   clampIsoDate,
   clampNumber,
@@ -24,7 +26,7 @@ import {
   shiftIsoDate,
   shortPcaLabel,
   transformationLabel,
-} from "./utils.js";
+} from "./utils.js?v=spread-controls-20260603-6";
 import {
   buildActivePcaResult,
   getCurrentBaselineModel,
@@ -32,13 +34,13 @@ import {
   validateComponentInterpretation,
   validateDifferencedIndexAlignment,
   validateExplainedVariance,
-} from "./pca.js";
-import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js";
+} from "./pca.js?v=spread-controls-20260603-6";
+import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=spread-controls-20260603-6";
 import {
   getRegimeOptionLabel,
   getRegimePresetDefinitions,
   resolveRegimePreset,
-} from "./regimes.js";
+} from "./regimes.js?v=spread-controls-20260603-6";
 
 // === Rendering ===
 function renderAll() {
@@ -51,6 +53,7 @@ function renderAll() {
   };
 
   safeRender(renderComparisonPanel);
+  safeRender(renderSpreadControls);
   safeRender(renderSpreadCards);
   safeRender(renderHistoricalYieldChart);
   safeRender(renderPcaLoadingsChart);
@@ -74,12 +77,8 @@ function renderEmptyDashboard() {
   renderEmptyChart(dom.pc1Chart, message);
   renderEmptyChart(dom.pc2Chart, message);
   renderEmptyChart(dom.pc3Chart, message);
-
-  SPREAD_DEFS.forEach((spread) => {
-    document.getElementById(`spreadValue-${spread.id}`).textContent = "--";
-    document.getElementById(`spreadNote-${spread.id}`).textContent = "--";
-    renderEmptyChart(document.getElementById(`spreadSpark-${spread.id}`), "Waiting for data");
-  });
+  renderSpreadControls();
+  renderSpreadCards();
 }
 
 function renderComparisonPanel() {
@@ -212,31 +211,85 @@ function renderDifferenceChart() {
 }
 
 function renderSpreadCards() {
-  const palette = currentPalette();
+  if (!dom.spreadGrid) {
+    return;
+  }
 
-  SPREAD_DEFS.forEach((spread) => {
-    const series = state.spreadSeries[spread.id] || [];
-    const card = document.getElementById(`spreadCard-${spread.id}`);
-    const valueNode = document.getElementById(`spreadValue-${spread.id}`);
-    const noteNode = document.getElementById(`spreadNote-${spread.id}`);
-    const sparkNode = document.getElementById(`spreadSpark-${spread.id}`);
+  const palette = currentPalette();
+  const spreads = Array.isArray(state.spreadDefs) ? state.spreadDefs : [];
+  dom.spreadGrid.innerHTML = "";
+
+  if (!spreads.length) {
+    const emptyState = document.createElement("p");
+    emptyState.className = "panel__hint spread-grid__empty";
+    emptyState.textContent = "No spread cards selected.";
+    dom.spreadGrid.append(emptyState);
+    return;
+  }
+
+  spreads.forEach((spread) => {
+    const series = computeSpreadSeries(spread);
+    const card = document.createElement("article");
+    card.className = "spread-card";
+
+    const header = document.createElement("div");
+    header.className = "spread-card__header";
+
+    const labelNode = document.createElement("p");
+    labelNode.className = "spread-card__label";
+    labelNode.textContent = spread.label;
+
+    const removeButton = document.createElement("button");
+    removeButton.className = "spread-card__remove";
+    removeButton.type = "button";
+    removeButton.dataset.removeSpread = spread.id;
+    removeButton.setAttribute("aria-label", `Remove ${spread.label}`);
+    removeButton.textContent = "Remove";
+
+    header.append(labelNode, removeButton);
+
+    const valueNode = document.createElement("strong");
+    valueNode.className = "spread-card__value";
+
+    const noteNode = document.createElement("p");
+    noteNode.className = "spread-card__subvalue";
+
+    const changeNode = document.createElement("p");
+    changeNode.className = "spread-card__change";
+
+    const sparkNode = document.createElement("div");
+    sparkNode.className = "chart chart--spark";
+
+    card.append(header, valueNode, noteNode, changeNode, sparkNode);
+    dom.spreadGrid.append(card);
 
     if (!series.length) {
       card.classList.remove("is-positive", "is-negative");
       valueNode.textContent = "--";
       noteNode.textContent = "Insufficient data";
-      renderEmptyChart(sparkNode, "No data");
+      changeNode.textContent = "1D CHG --";
+      renderSparklineFallback(sparkNode, "No data");
       return;
     }
 
     const latestPoint = series.at(-1);
+    const previousPoint = series.at(-2);
+    const oneDayChange = previousPoint ? (latestPoint.value - previousPoint.value) * 100 : null;
     card.classList.toggle("is-positive", latestPoint.value >= 0);
     card.classList.toggle("is-negative", latestPoint.value < 0);
 
     valueNode.textContent = formatBasisPoints(latestPoint.value * 100);
-    noteNode.textContent = `${latestPoint.value.toFixed(2)}% on ${formatHumanDate(latestPoint.date)}`;
+    noteNode.textContent = `As of ${formatHumanDate(latestPoint.date)}`;
+    changeNode.classList.toggle("is-positive", oneDayChange != null && oneDayChange > 0);
+    changeNode.classList.toggle("is-negative", oneDayChange != null && oneDayChange < 0);
+    changeNode.textContent =
+      oneDayChange == null ? "1D CHG --" : `1D CHG ${formatBasisPoints(oneDayChange)}`;
 
     const sparklineSeries = series.slice(-CONFIG.sparklineLookback);
+    if (!window.Plotly) {
+      renderSparklineFallback(sparkNode, "Sparkline unavailable");
+      return;
+    }
 
     renderPlot(
       sparkNode,
@@ -262,6 +315,186 @@ function renderSpreadCards() {
       { displayModeBar: false }
     );
   });
+}
+
+function renderSparklineFallback(container, message) {
+  if (window.Plotly) {
+    renderEmptyChart(container, message);
+    return;
+  }
+
+  container.textContent = message;
+}
+
+function renderSpreadControls(message = "") {
+  if (!dom.spreadLeftSelect || !dom.spreadRightSelect || !dom.spreadFlyBackSelect) {
+    return;
+  }
+
+  const previousLeft = dom.spreadLeftSelect.value || "10Y";
+  const previousRight = dom.spreadRightSelect.value || "2Y";
+  const previousBack = dom.spreadFlyBackSelect.value || "10Y";
+
+  renderMaturitySelectOptions(dom.spreadLeftSelect, previousLeft);
+  renderMaturitySelectOptions(dom.spreadRightSelect, previousRight);
+  renderMaturitySelectOptions(dom.spreadFlyBackSelect, previousBack);
+
+  if (dom.spreadLeftSelect.value === dom.spreadRightSelect.value) {
+    dom.addSpreadBtn.disabled = true;
+  } else {
+    dom.addSpreadBtn.disabled = false;
+  }
+
+  const flyLegs = [
+    dom.spreadLeftSelect.value,
+    dom.spreadRightSelect.value,
+    dom.spreadFlyBackSelect.value,
+  ];
+  dom.addButterflyBtn.disabled = new Set(flyLegs).size !== 3;
+
+  const count = Array.isArray(state.spreadDefs) ? state.spreadDefs.length : 0;
+  const formulaNote = "Butterfly = 2 x second leg - first leg - third leg.";
+  dom.spreadControlHint.textContent =
+    message ? `${message} ${formulaNote}` : `Showing ${count} ${count === 1 ? "spread" : "spreads"}. ${formulaNote}`;
+}
+
+function renderMaturitySelectOptions(selectNode, selectedKey) {
+  selectNode.innerHTML = "";
+
+  const availableKeys = new Set(
+    MATURITY_DEFS.filter(
+      (definition) =>
+        !state.records.length ||
+        state.records.some((record) => Number.isFinite(record[definition.key]))
+    ).map((definition) => definition.key)
+  );
+  const shouldLimitToAvailableKeys = Boolean(state.records.length && availableKeys.size);
+
+  MATURITY_DEFS.forEach((definition) => {
+    const option = document.createElement("option");
+    option.value = definition.key;
+    option.textContent = definition.label;
+    option.disabled = shouldLimitToAvailableKeys && !availableKeys.has(definition.key);
+    selectNode.append(option);
+  });
+
+  if (!shouldLimitToAvailableKeys || availableKeys.has(selectedKey)) {
+    selectNode.value = selectedKey;
+    return;
+  }
+
+  selectNode.value = availableKeys.values().next().value || MATURITY_DEFS[0].key;
+}
+
+function addSpreadDefinition(left, right) {
+  if (left === right) {
+    renderSpreadControls("Spread requires two different maturities.");
+    return;
+  }
+
+  const validMaturities = new Set(MATURITY_DEFS.map((definition) => definition.key));
+  if (!validMaturities.has(left) || !validMaturities.has(right)) {
+    renderSpreadControls("Selected maturity is unavailable.");
+    return;
+  }
+
+  if (state.spreadDefs.some((spread) => spread.left === left && spread.right === right)) {
+    renderSpreadControls(`${left}-${right} is already shown.`);
+    return;
+  }
+
+  state.spreadDefs.push({
+    id: `${left}_${right}`,
+    label: `${left}-${right}`,
+    left,
+    right,
+  });
+  persistSpreadDefinitions();
+  renderSpreadControls(`${left}-${right} added.`);
+  renderSpreadCards();
+}
+
+function addButterflyDefinition(front, belly, back) {
+  if (new Set([front, belly, back]).size !== 3) {
+    renderSpreadControls("Butterfly requires three different maturities.");
+    return;
+  }
+
+  const validMaturities = new Set(MATURITY_DEFS.map((definition) => definition.key));
+  if (!validMaturities.has(front) || !validMaturities.has(belly) || !validMaturities.has(back)) {
+    renderSpreadControls("Selected maturity is unavailable.");
+    return;
+  }
+
+  if (
+    state.spreadDefs.some(
+      (spread) =>
+        spread.type === "butterfly" &&
+        spread.front === front &&
+        spread.belly === belly &&
+        spread.back === back
+    )
+  ) {
+    renderSpreadControls(`${formatButterflyLabel(front, belly, back)} is already shown.`);
+    return;
+  }
+
+  const label = formatButterflyLabel(front, belly, back);
+  state.spreadDefs.push({
+    id: `fly_${front}_${belly}_${back}`,
+    type: "butterfly",
+    label,
+    front,
+    belly,
+    back,
+  });
+  persistSpreadDefinitions();
+  renderSpreadControls(`${label} added.`);
+  renderSpreadCards();
+}
+
+function removeSpreadDefinition(spreadId) {
+  state.spreadDefs = state.spreadDefs.filter((spread) => spread.id !== spreadId);
+  persistSpreadDefinitions();
+  renderSpreadControls();
+  renderSpreadCards();
+}
+
+function resetSpreadDefinitions() {
+  state.spreadDefs = SPREAD_DEFS.map((spread) => ({ ...spread }));
+  persistSpreadDefinitions();
+  renderSpreadControls("Default spreads restored.");
+  renderSpreadCards();
+}
+
+function computeSpreadSeries(spread) {
+  return state.records
+    .map((record) => {
+      if (spread.type === "butterfly") {
+        if (
+          record[spread.front] == null ||
+          record[spread.belly] == null ||
+          record[spread.back] == null
+        ) {
+          return null;
+        }
+
+        return {
+          date: record.date,
+          value: 2 * record[spread.belly] - record[spread.front] - record[spread.back],
+        };
+      }
+
+      if (record[spread.left] == null || record[spread.right] == null) {
+        return null;
+      }
+
+      return {
+        date: record.date,
+        value: record[spread.left] - record[spread.right],
+      };
+    })
+    .filter(Boolean);
 }
 
 function renderHistoricalYieldChart() {
@@ -1655,4 +1888,9 @@ export {
   updatePcaRangeBounds,
   updatePcaRangeButtons,
   updateStatusCards,
+  addButterflyDefinition,
+  addSpreadDefinition,
+  removeSpreadDefinition,
+  resetSpreadDefinitions,
+  renderSpreadControls,
 };

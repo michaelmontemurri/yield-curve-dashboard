@@ -1,1 +1,1 @@
-import "./js/app.js";
+import "./js/app.js?v=spread-controls-20260603-6";

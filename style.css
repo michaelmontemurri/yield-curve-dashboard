@@ -181,14 +181,16 @@ input {
 .panel__meta-label,
 .control-field span,
 .spread-card__label,
-.spread-card__subvalue {
+.spread-card__subvalue,
+.spread-card__change {
   display: block;
   color: var(--text-soft);
 }
 
 .stat-card__label,
 .panel__meta-label,
-.spread-card__subvalue {
+.spread-card__subvalue,
+.spread-card__change {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -562,6 +564,11 @@ input {
   gap: 18px;
 }
 
+.spread-controls {
+  align-items: end;
+  margin-bottom: 10px;
+}
+
 .spread-card {
   padding: 18px;
   border-radius: var(--radius-md);
@@ -569,8 +576,16 @@ input {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.spread-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .spread-card__label {
-  margin: 0 0 12px;
+  margin: 0;
 }
 
 .spread-card__value {
@@ -587,6 +602,39 @@ input {
 
 .spread-card.is-negative .spread-card__value {
   color: var(--danger);
+}
+
+.spread-card__change {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.spread-card__change.is-positive {
+  color: var(--success);
+}
+
+.spread-card__change.is-negative {
+  color: var(--danger);
+}
+
+.spread-card__remove {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.spread-card__remove:hover,
+.spread-card__remove:focus-visible {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.spread-grid__empty {
+  grid-column: 1 / -1;
 }
 
 .stacked-charts {

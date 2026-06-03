@@ -4,11 +4,12 @@ import {
   SPREAD_DEFS,
   dom,
   state,
+  loadSpreadDefinitions,
   loadOverlayDates,
   persistHistoryMaturities,
-} from "./core.js";
-import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js";
-import { buildPcaContext } from "./pca.js";
+} from "./core.js?v=spread-controls-20260603-6";
+import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=spread-controls-20260603-6";
+import { buildPcaContext } from "./pca.js?v=spread-controls-20260603-6";
 import {
   addOverlayDate,
   applyPcaModeSelection,
@@ -41,13 +42,22 @@ import {
   updatePcaRangeBounds,
   updatePcaRangeButtons,
   updateStatusCards,
-} from "./rendering.js";
+  addButterflyDefinition,
+  addSpreadDefinition,
+  removeSpreadDefinition,
+  resetSpreadDefinitions,
+  renderSpreadControls,
+} from "./rendering.js?v=spread-controls-20260603-6";
 
 // === Application Bootstrap ===
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   cacheDom();
+  hydratePreferences();
+  renderSpreadControls();
+  bindSpreadEvents();
+
   if (!window.Plotly) {
     setStatus(
       "Plotly did not load. This version uses the CDN-hosted library, so basic internet access is required for chart rendering.",
@@ -57,7 +67,6 @@ async function init() {
     return;
   }
 
-  hydratePreferences();
   renderPcaPresetOptions();
   renderMaturityToggles();
   bindEvents();
@@ -122,6 +131,14 @@ function cacheDom() {
   dom.comparisonCurveChart = document.getElementById("comparisonCurveChart");
   dom.differenceChartWrap = document.getElementById("differenceChartWrap");
   dom.differenceChart = document.getElementById("differenceChart");
+  dom.spreadLeftSelect = document.getElementById("spreadLeftSelect");
+  dom.spreadRightSelect = document.getElementById("spreadRightSelect");
+  dom.spreadFlyBackSelect = document.getElementById("spreadFlyBackSelect");
+  dom.addSpreadBtn = document.getElementById("addSpreadBtn");
+  dom.addButterflyBtn = document.getElementById("addButterflyBtn");
+  dom.resetSpreadsBtn = document.getElementById("resetSpreadsBtn");
+  dom.spreadControlHint = document.getElementById("spreadControlHint");
+  dom.spreadGrid = document.getElementById("spreadGrid");
   dom.historyMaturityToggles = document.getElementById("historyMaturityToggles");
   dom.historyYAxisButtons = document.getElementById("historyYAxisButtons");
   dom.historyResetViewBtn = document.getElementById("historyResetViewBtn");
@@ -365,12 +382,45 @@ function bindEvents() {
   });
 }
 
+function bindSpreadEvents() {
+  dom.addSpreadBtn.addEventListener("click", () => {
+    addSpreadDefinition(dom.spreadLeftSelect.value, dom.spreadRightSelect.value);
+  });
+
+  dom.addButterflyBtn.addEventListener("click", () => {
+    addButterflyDefinition(
+      dom.spreadLeftSelect.value,
+      dom.spreadRightSelect.value,
+      dom.spreadFlyBackSelect.value
+    );
+  });
+
+  [dom.spreadLeftSelect, dom.spreadRightSelect, dom.spreadFlyBackSelect].forEach((control) => {
+    control.addEventListener("change", () => {
+      renderSpreadControls();
+    });
+  });
+
+  dom.resetSpreadsBtn.addEventListener("click", resetSpreadDefinitions);
+
+  dom.spreadGrid.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-remove-spread]");
+    if (!removeButton) {
+      return;
+    }
+
+    removeSpreadDefinition(removeButton.dataset.removeSpread);
+  });
+}
+
 // === Preferences And Data Loading ===
 function hydratePreferences() {
   const storedTheme = localStorage.getItem(CONFIG.storageKeys.theme);
   if (storedTheme === "light" || storedTheme === "dark") {
     state.theme = storedTheme;
   }
+
+  state.spreadDefs = loadSpreadDefinitions();
 
   const storedMaturities = localStorage.getItem(CONFIG.storageKeys.historyMaturities);
   if (storedMaturities) {
@@ -805,6 +855,21 @@ function computeAllSpreadSeries(records) {
   SPREAD_DEFS.forEach((spread) => {
     series[spread.id] = records
       .map((record) => {
+        if (spread.type === "butterfly") {
+          if (
+            record[spread.front] == null ||
+            record[spread.belly] == null ||
+            record[spread.back] == null
+          ) {
+            return null;
+          }
+
+          return {
+            date: record.date,
+            value: 2 * record[spread.belly] - record[spread.front] - record[spread.back],
+          };
+        }
+
         if (record[spread.left] == null || record[spread.right] == null) {
           return null;
         }
