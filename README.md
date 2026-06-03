@@ -1,10 +1,15 @@
 # U.S. Treasury Yield Curve Dashboard
 
-Static frontend dashboard for inspecting the U.S. Treasury Daily Treasury Yield Curve Rates series from a browser, with no backend and no database.
+Static frontend dashboard for inspecting U.S. Treasury yield curves and Treasury marketable-security auction issuance from a browser, with no backend and no database.
 
 I built this with Codex for daily personal use, because I prefer a plot to a table and I wanted a more customizable version of https://www.ustreasuryyieldcurve.com/ for following U.S. Treasury yields. 
 
-It's a simple, locally run web app that fetches the latest yields from the [Official U.S. Treasury Daily Treasury Par Yield Curve Rates page](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve), fetches Treasury marketable-security auction data from TreasuryDirect, and generates visuals.
+It's a simple, locally run web app with two pages:
+
+- `index.html`: yield curve comparison, configurable spread and butterfly monitors, maturity time series, and PCA.
+- `issuance.html`: TreasuryDirect auction issuance, demand, bidder allocation, and upcoming supply.
+
+The yield dashboard fetches the latest history from the [Official U.S. Treasury Daily Treasury Par Yield Curve Rates page](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve). The issuance dashboard fetches Treasury marketable-security auction data from TreasuryDirect.
 
 
 ## Data Source
@@ -41,54 +46,89 @@ kill -9 <PID>
 
 ## Dashboard Behavior
 
-### Treasury Issuance
+### Pages And Navigation
 
-- `issuance.html` loads recent auction rows from TreasuryDirect's auction query service.
-- The page summarizes gross offering amount, completed auction count, weighted average bid-to-cover, indirect bidder share, and announced upcoming offering amount.
-- Visuals include monthly offering by security type, bid-to-cover vs offering size, accepted bidder allocation, offering amount by term, upcoming auctions, and a recent auction tape.
-- Filters let you choose lookback window, security type, whether to show announced auctions, and whether to include reopenings.
+- `index.html` is the Yield Curve page.
+- `issuance.html` is the Issuance page.
+- The page navigation at the top of each dashboard switches between the two.
 
-### Latest Yield Curve
+### Yield Curve Dashboard
 
-- Plots the latest available curve in the loaded dataset (automatically fetched from the [Official U.S. Treasury Site](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve")
-
-![Latest Yield Curve](images/yield_curve.png)
+The Yield Curve page focuses on comparisons and historical context. The old standalone `Latest Yield Curve` plot has been removed; the latest curve is now shown in the comparison panel alongside selected historical dates and overlays.
 
 ### Historical Comparison
 
-- Overlay curves of selected dates
+- Compare the latest curve against a selected date.
+- Add multiple historical overlays.
+- Presets include latest, 1 day, 1 week, 1 month, 3 months, 1 year, max steepening, and max inversion.
+- Show or hide the basis-point difference chart for latest minus selected.
+
 ![Overlayed Yield Curve](images/overlay_curve.png)
 
-
-`max steepening` and `max inversion` are based on the `10Y - 2Y` spread in the loaded sample.
+`max steepening` and `max inversion` are based on the `2s10s` spread in the loaded sample, implemented as `10Y - 2Y`.
 
 ### Spread Summary
 
-The spread cards highlight:
+The spread cards are configurable. Defaults are:
 
-- `10Y - 2Y`
-- `30Y - 10Y`
-- `5Y - 3M`
+- `2s10s`: `10Y - 2Y`
+- `5s30s`: `30Y - 5Y`
+- `2s5s10s`: `2 * 5Y - 2Y - 10Y`
 
-Each card shows latest spread in basis points, in percent, and a compact sparkline
+Controls let you add:
+
+- Two-leg spreads, calculated as `first leg - second leg`.
+- Butterfly spreads, calculated as `2 x second leg - first leg - third leg`.
+
+Each card shows:
+
+- Current spread or butterfly value in basis points.
+- One-day change in basis points, computed versus the prior available Treasury observation.
+- The latest available date.
+- A compact sparkline.
+
+Selected cards persist in local storage. `Reset Defaults` restores `2s10s`, `5s30s`, and `2s5s10s`.
+
 ![Overlayed Yield Curve](images/key_spreads.png)
 
 
 ### Historical Yields
 
-- Time series of selected maturity yields with range slider
+- Time series of selected maturity yields.
+- Defaults to the latest 1-year window.
+- Range buttons expand the visible window to 5 years, 10 years, or all history.
+- `Visible-Window Y` is enabled by default and scales the y-axis to the selected time window.
+- `Full-Series Y` is still available if you want a constant y-axis across all loaded history.
+- `Auto Fit Visible Y` fits the y-axis to the data in the currently selected window, not the entire historical series.
+
 ![selected_maturities](images/selected_maturities.png)
+
+### Treasury Issuance Dashboard
+
+The Issuance page is `issuance.html`. It loads recent marketable-security auction rows from TreasuryDirect's auction query service and keeps the dashboard fully static in the browser.
+
+The page includes:
+
+- Summary cards for gross offering amount, completed auction count, weighted average bid-to-cover, indirect bidder share, and announced upcoming offering amount.
+- Filters for completed lookback window, security type, announced auctions, and reopenings.
+- Monthly offering by security type.
+- Bid-to-cover versus offering size.
+- Accepted bidder allocation across primary dealers, indirect bidders, and direct bidders.
+- Offering amount by term.
+- Upcoming auction table with announcement/result links where TreasuryDirect provides file names.
+- Recent auction tape for completed auctions.
+- CSV export for the currently filtered auction rows.
 
 ## PCA Loadings
 
-Method used in `script.js`:
+Method used in `js/pca.js`:
 
 1. Build the historical daily matrix from maturities with sufficient coverage.
 2. Use a coverage threshold to select common maturities across the sample.
 3. Drop rows with missing values across the chosen PCA maturities.
 4. Mean-center each maturity series across time.
 5. Compute the covariance matrix of the centered matrix, either on yield levels or on daily first differences.
-6. Extract the top 3 eigenvectors from the singular vector matrix after perfomring SVD.
+6. Extract the top 3 eigenvectors from the singular vector matrix after performing SVD.
 7. Compute score time series for PC1, PC2, and PC3.
 8. Orient component signs toward the usual fixed-income interpretation:
    - PC1: level / parallel shift
@@ -108,8 +148,8 @@ Preset regimes can span multiple disjoint windows. The PCA fit uses the union of
 
 ### Levels Vs Daily Differences
 
-- `Levels`L  fit PCA on the yield curve level matrix after mean-centering. Captures the dominant structure of the curve level across time.
-- `Daily Differences`L fit PCA on first differences of yields, maturity by maturity, after mean-centering the differenced matrix. Useful when secular trend shifts dominate the sample and you want to isolate day-to-day co-movement instead.
+- `Levels`: fit PCA on the yield curve level matrix after mean-centering. Captures the dominant structure of the curve level across time.
+- `Daily Differences`: fit PCA on first differences of yields, maturity by maturity, after mean-centering the differenced matrix. Useful when secular trend shifts dominate the sample and you want to isolate day-to-day co-movement instead.
 
 #### Why Care About This?
 
@@ -155,7 +195,7 @@ PC3 becomes visible again (~4.9%)
 
 This reflects the fact that day-to-day moves during the hiking cycle were not purely parallel shifts
 
-Levels PCA captures macro regime shifts dominated by large structural repricing, wher Daily Differences PCA captures more trading-relevant dynamics of how different parts of the curve move relative to each other
+Levels PCA captures macro regime shifts dominated by large structural repricing, while Daily Differences PCA captures more trading-relevant dynamics of how different parts of the curve move relative to each other.
 
 ### Preset Regimes
 
@@ -210,10 +250,18 @@ Diffs:
 
 ### In the app
 
+Yield curve data:
+
 1. Click `Refresh Official Data`.
 2. Wait for the official XML history to load.
 3. If you want a replaceable local snapshot, click `Download Current CSV`.
 4. Move the downloaded CSV into `data/sample_treasury_yields.csv` if you want the bundled fallback updated.
+
+Issuance data:
+
+1. Open `issuance.html`.
+2. Click `Refresh TreasuryDirect`.
+3. Use `Download Current CSV` to export the currently filtered auction rows.
 
 ### Manual fallback workflow
 

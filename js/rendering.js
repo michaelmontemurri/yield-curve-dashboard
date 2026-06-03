@@ -9,7 +9,7 @@ import {
   persistOverlayDates,
   persistSpreadDefinitions,
   formatButterflyLabel,
-} from "./core.js?v=spread-controls-20260603-6";
+} from "./core.js?v=spread-controls-20260603-8";
 import {
   clampIsoDate,
   clampNumber,
@@ -26,7 +26,7 @@ import {
   shiftIsoDate,
   shortPcaLabel,
   transformationLabel,
-} from "./utils.js?v=spread-controls-20260603-6";
+} from "./utils.js?v=spread-controls-20260603-8";
 import {
   buildActivePcaResult,
   getCurrentBaselineModel,
@@ -34,13 +34,13 @@ import {
   validateComponentInterpretation,
   validateDifferencedIndexAlignment,
   validateExplainedVariance,
-} from "./pca.js?v=spread-controls-20260603-6";
-import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=spread-controls-20260603-6";
+} from "./pca.js?v=spread-controls-20260603-8";
+import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=spread-controls-20260603-8";
 import {
   getRegimeOptionLabel,
   getRegimePresetDefinitions,
   resolveRegimePreset,
-} from "./regimes.js?v=spread-controls-20260603-6";
+} from "./regimes.js?v=spread-controls-20260603-8";
 
 // === Rendering ===
 function renderAll() {
@@ -504,6 +504,8 @@ function renderHistoricalYieldChart() {
     return;
   }
 
+  ensureHistoryRangePresetApplied();
+
   const palette = currentPalette();
   const selectedKeys = resolveHistoryChartKeys();
 
@@ -696,6 +698,46 @@ function normalizeHistoryChartXRange() {
   return state.historyChart.xRange;
 }
 
+function ensureHistoryRangePresetApplied() {
+  if (!state.records.length) {
+    return;
+  }
+
+  if (!state.historyChart.xRange && state.historyChart.rangePreset !== "all") {
+    syncHistoryRangePreset(state.historyChart.rangePreset || "1y");
+  }
+}
+
+function syncHistoryRangePreset(preset) {
+  state.historyChart.rangePreset = preset || "1y";
+  state.historyChart.yRangeOverride = null;
+
+  if (!state.records.length) {
+    state.historyChart.xRange = null;
+    updateHistoryAxisControls();
+    return;
+  }
+
+  const latestDate = state.latestRecord?.date || state.records.at(-1)?.date;
+  const firstDate = state.records[0]?.date;
+
+  if (!latestDate || !firstDate || state.historyChart.rangePreset === "all") {
+    state.historyChart.xRange = null;
+    updateHistoryAxisControls();
+    return;
+  }
+
+  const yearsByPreset = {
+    "1y": 1,
+    "5y": 5,
+    "10y": 10,
+  };
+  const years = yearsByPreset[state.historyChart.rangePreset] || 1;
+  const start = clampIsoDate(shiftIsoDate(latestDate, { years: -years }), firstDate, latestDate);
+  state.historyChart.xRange = { start, end: latestDate };
+  updateHistoryAxisControls();
+}
+
 function attachHistoryYieldChartRelayoutHandler() {
   if (dom.historyYieldChart.__historyRelayoutAttached) {
     return;
@@ -706,8 +748,16 @@ function attachHistoryYieldChartRelayoutHandler() {
       return;
     }
 
+    state.historyChart.rangePreset = "custom";
+
     if (event["xaxis.autorange"]) {
       state.historyChart.xRange = null;
+      state.historyChart.rangePreset = "all";
+    } else if (Array.isArray(event["xaxis.range"]) && event["xaxis.range"].length >= 2) {
+      state.historyChart.xRange = {
+        start: normalizePlotlyDate(event["xaxis.range"][0]),
+        end: normalizePlotlyDate(event["xaxis.range"][1]),
+      };
     } else if (event["xaxis.range[0]"] && event["xaxis.range[1]"]) {
       state.historyChart.xRange = {
         start: normalizePlotlyDate(event["xaxis.range[0]"]),
@@ -803,6 +853,7 @@ function normalizePlotlyDate(value) {
 
 function updateHistoryAxisControls() {
   if (
+    !dom.historyRangeButtons ||
     !dom.historyYAxisButtons ||
     !dom.historyAxisHint ||
     !dom.historyResetViewBtn ||
@@ -822,8 +873,14 @@ function updateHistoryAxisControls() {
       button.classList.toggle("is-active", button.dataset.historyYAxis === state.historyChart.yAxisMode);
     });
 
+  dom.historyRangeButtons
+    .querySelectorAll("[data-history-range]")
+    .forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.historyRange === state.historyChart.rangePreset);
+    });
+
   const xRange = normalizeHistoryChartXRange();
-  dom.historyResetViewBtn.disabled = !xRange;
+  dom.historyResetViewBtn.disabled = state.historyChart.rangePreset === "1y";
 
   if (state.historyChart.yAxisMode === "visible") {
     const selectedKeys = state.records.length ? resolveHistoryChartKeys() : [];
@@ -849,15 +906,15 @@ function updateHistoryAxisControls() {
     dom.historyYMaxValue.textContent = `${appliedRange[1].toFixed(2)}%`;
 
     dom.historyAxisHint.textContent = xRange
-      ? `Visible-Window Y is active for ${formatHumanDate(xRange.start)} to ${formatHumanDate(xRange.end)}. Use the sliders to refine the y-axis range or click Auto Fit Visible Y.`
-      : "Visible-Window Y is active. Zoom or drag the range slider to set the visible period, then use the y-axis sliders to refine the scale.";
+      ? `Visible-Window Y is active for ${formatHumanDate(xRange.start)} to ${formatHumanDate(xRange.end)}. Use the range buttons to view more history, or the sliders to refine the y-axis.`
+      : "Visible-Window Y is active for all history. Use the range buttons to return to a shorter window, or the sliders to refine the y-axis.";
     return;
   }
 
   dom.historyAxisWindow.hidden = true;
   dom.historyAxisHint.textContent = xRange
     ? `Y-axis uses the full selected history while the visible date window is ${formatHumanDate(xRange.start)} to ${formatHumanDate(xRange.end)}.`
-    : "Y-axis uses the full selected history. Switch to Visible-Window Y after zooming the date range to rescale the plot.";
+    : "Y-axis uses the full selected history. Switch to Visible-Window Y to scale to the selected time window.";
 }
 
 function renderPcaLoadingsChart() {
@@ -1878,6 +1935,7 @@ export {
   renderPcaScoreCharts,
   resolveNearestPriorDate,
   setComparisonDate,
+  syncHistoryRangePreset,
   syncHistoryYieldYAxisOverride,
   syncPcaControlsFromState,
   updateHistoryAxisControls,

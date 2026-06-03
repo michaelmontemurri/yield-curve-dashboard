@@ -119,7 +119,8 @@ const state = {
   extremeSpreadDates: {},
   historyMaturities: new Set(CONFIG.defaultHistoryMaturities),
   historyChart: {
-    yAxisMode: "full",
+    rangePreset: "1y",
+    yAxisMode: "visible",
     xRange: null,
     yRangeOverride: null,
   },

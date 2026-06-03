@@ -16,7 +16,7 @@
     />
     <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <script type="module" src="script.js?v=spread-controls-20260603-6"></script>
+    <script type="module" src="script.js?v=spread-controls-20260603-8"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -236,20 +236,30 @@
 
           <div class="toggle-group" id="historyMaturityToggles"></div>
           <div class="control-strip control-strip--history">
+            <div class="button-group" id="historyRangeButtons">
+              <button class="chip-button is-active" data-history-range="1y" type="button">
+                1 Year
+              </button>
+              <button class="chip-button" data-history-range="5y" type="button">5 Years</button>
+              <button class="chip-button" data-history-range="10y" type="button">10 Years</button>
+              <button class="chip-button" data-history-range="all" type="button">
+                All History
+              </button>
+            </div>
             <div class="button-group" id="historyYAxisButtons">
-              <button class="chip-button is-active" data-history-y-axis="full" type="button">
+              <button class="chip-button" data-history-y-axis="full" type="button">
                 Full-Series Y
               </button>
-              <button class="chip-button" data-history-y-axis="visible" type="button">
+              <button class="chip-button is-active" data-history-y-axis="visible" type="button">
                 Visible-Window Y
               </button>
             </div>
             <button class="button button--ghost" id="historyResetViewBtn" type="button">
-              Reset Time Window
+              Reset to 1 Year
             </button>
           </div>
           <p class="panel__hint" id="historyAxisHint">
-            Y-axis uses the full selected history. Switch to Visible-Window Y after zooming the date range to rescale the plot.
+            Showing the latest year by default. Visible-Window Y scales to the selected time window.
           </p>
           <div class="history-axis-window" id="historyAxisWindow" hidden>
             <label class="control-field control-field--slider">

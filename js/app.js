@@ -7,9 +7,9 @@ import {
   loadSpreadDefinitions,
   loadOverlayDates,
   persistHistoryMaturities,
-} from "./core.js?v=spread-controls-20260603-6";
-import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=spread-controls-20260603-6";
-import { buildPcaContext } from "./pca.js?v=spread-controls-20260603-6";
+} from "./core.js?v=spread-controls-20260603-8";
+import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=spread-controls-20260603-8";
+import { buildPcaContext } from "./pca.js?v=spread-controls-20260603-8";
 import {
   addOverlayDate,
   applyPcaModeSelection,
@@ -25,6 +25,7 @@ import {
   renderEmptyDashboard,
   renderHistoricalYieldChart,
   syncHistoryYieldYAxisOverride,
+  syncHistoryRangePreset,
   updateHistoryAxisControls,
   renderMaturityToggles,
   renderPcaControlMessage,
@@ -47,7 +48,7 @@ import {
   removeSpreadDefinition,
   resetSpreadDefinitions,
   renderSpreadControls,
-} from "./rendering.js?v=spread-controls-20260603-6";
+} from "./rendering.js?v=spread-controls-20260603-8";
 
 // === Application Bootstrap ===
 document.addEventListener("DOMContentLoaded", init);
@@ -140,6 +141,7 @@ function cacheDom() {
   dom.spreadControlHint = document.getElementById("spreadControlHint");
   dom.spreadGrid = document.getElementById("spreadGrid");
   dom.historyMaturityToggles = document.getElementById("historyMaturityToggles");
+  dom.historyRangeButtons = document.getElementById("historyRangeButtons");
   dom.historyYAxisButtons = document.getElementById("historyYAxisButtons");
   dom.historyResetViewBtn = document.getElementById("historyResetViewBtn");
   dom.historyAxisHint = document.getElementById("historyAxisHint");
@@ -269,6 +271,16 @@ function bindEvents() {
     renderHistoricalYieldChart();
   });
 
+  dom.historyRangeButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-history-range]");
+    if (!button) {
+      return;
+    }
+
+    syncHistoryRangePreset(button.dataset.historyRange);
+    renderHistoricalYieldChart();
+  });
+
   dom.historyYAxisButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-history-y-axis]");
     if (!button) {
@@ -282,7 +294,7 @@ function bindEvents() {
   });
 
   dom.historyResetViewBtn.addEventListener("click", () => {
-    state.historyChart.xRange = null;
+    syncHistoryRangePreset("1y");
     state.historyChart.yRangeOverride = null;
     renderHistoricalYieldChart();
   });
