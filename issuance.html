@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>U.S. Treasury Issuance Dashboard</title>
+    <meta
+      name="description"
+      content="TreasuryDirect auction issuance dashboard with offering trends, auction demand, bidder allocation, and upcoming Treasury auctions."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script type="module" src="js/issuance.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="panel topbar">
+        <div class="topbar__headline">
+          <p class="eyebrow">Personal Fixed-Income Monitor</p>
+          <h1>U.S. Treasury Issuance Dashboard</h1>
+          <p class="topbar__description">
+            Auction issuance, demand, bidder allocation, and upcoming supply
+            from the TreasuryDirect auction query service.
+          </p>
+          <nav class="page-nav" aria-label="Dashboard pages">
+            <a class="button" href="index.html">Yield Curve</a>
+            <a class="button button--primary is-active" href="issuance.html" aria-current="page">
+              Issuance
+            </a>
+          </nav>
+        </div>
+
+        <div class="topbar__rail">
+          <div class="stat-grid">
+            <article class="stat-card">
+              <span class="stat-card__label">Latest Auction</span>
+              <strong class="stat-card__value" id="latestAuctionDate">--</strong>
+            </article>
+            <article class="stat-card">
+              <span class="stat-card__label">Rows Loaded</span>
+              <strong class="stat-card__value" id="auctionRowsLoaded">--</strong>
+            </article>
+            <article class="stat-card">
+              <span class="stat-card__label">Active Source</span>
+              <strong class="stat-card__value" id="auctionActiveSource">Waiting</strong>
+            </article>
+          </div>
+
+          <div class="action-row">
+            <button class="button button--primary" id="refreshAuctionsBtn" type="button">
+              Refresh TreasuryDirect
+            </button>
+            <button class="button" id="exportAuctionsBtn" type="button">
+              Download Current CSV
+            </button>
+            <button class="button button--ghost" id="auctionThemeToggleBtn" type="button">
+              Dark Mode
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel source-panel">
+        <div class="source-panel__summary">
+          <div class="source-status">
+            <span class="status-badge" id="auctionSourceBadge">Initializing</span>
+            <p class="status-message" id="auctionStatusMessage">
+              Waiting for TreasuryDirect auction data.
+            </p>
+          </div>
+
+          <div class="source-actions">
+            <p class="source-note" id="auctionSourceNote">
+              The page uses TreasuryDirect's JSONP auction query endpoint so it
+              can run as a static browser dashboard.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <main class="dashboard-grid">
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Scope</p>
+              <h2>Auction Data Filters</h2>
+            </div>
+          </div>
+
+          <div class="control-strip issuance-controls">
+            <label class="control-field">
+              <span>Completed Lookback</span>
+              <select id="issuanceLookbackSelect">
+                <option value="3">3 Months</option>
+                <option value="6">6 Months</option>
+                <option value="12" selected>12 Months</option>
+                <option value="24">2 Years</option>
+                <option value="60">5 Years</option>
+              </select>
+            </label>
+
+            <div class="field-cluster">
+              <label class="toggle-chip">
+                <input id="includeUpcomingToggle" type="checkbox" checked />
+                <span>Announced</span>
+              </label>
+              <label class="toggle-chip">
+                <input id="includeReopeningsToggle" type="checkbox" checked />
+                <span>Reopenings</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="toggle-group" id="issuanceTypeToggles"></div>
+          <p class="panel__hint" id="issuanceFilterSummary">
+            Filters apply after live data loads.
+          </p>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="summary-grid issuance-summary-grid">
+            <article class="summary-card">
+              <span class="summary-card__label">Gross Offering</span>
+              <strong class="summary-card__value" id="periodOfferingAmount">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Completed Auctions</span>
+              <strong class="summary-card__value" id="periodAuctionCount">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Avg Bid-To-Cover</span>
+              <strong class="summary-card__value" id="averageBidToCover">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Indirect Accepted</span>
+              <strong class="summary-card__value" id="indirectShare">--</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Upcoming Offering</span>
+              <strong class="summary-card__value" id="upcomingOfferingAmount">--</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Supply Mix</p>
+              <h2>Monthly Offering By Security Type</h2>
+            </div>
+            <div class="panel__meta">
+              <span class="panel__meta-label">Window</span>
+              <strong id="issuanceWindowLabel">--</strong>
+            </div>
+          </div>
+          <div class="chart chart--tall" id="monthlyIssuanceChart"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Auction Demand</p>
+              <h2>Bid-To-Cover And Offering Size</h2>
+            </div>
+          </div>
+          <div class="chart chart--medium" id="bidToCoverChart"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Distribution</p>
+              <h2>Accepted Bidder Allocation</h2>
+            </div>
+          </div>
+          <div class="chart chart--medium" id="bidderAllocationChart"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Term Structure Of Supply</p>
+              <h2>Offering Amount By Term</h2>
+            </div>
+          </div>
+          <div class="chart chart--medium" id="termMixChart"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Calendar</p>
+              <h2>Upcoming Auctions</h2>
+            </div>
+          </div>
+          <div class="issuance-table-wrap">
+            <table class="issuance-table">
+              <thead>
+                <tr>
+                  <th>Auction</th>
+                  <th>Issue</th>
+                  <th>Type</th>
+                  <th>Term</th>
+                  <th>CUSIP</th>
+                  <th>Offering</th>
+                  <th>Reopening</th>
+                  <th>Links</th>
+                </tr>
+              </thead>
+              <tbody id="upcomingAuctionsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Recent Results</p>
+              <h2>Auction Tape</h2>
+            </div>
+          </div>
+          <div class="issuance-table-wrap">
+            <table class="issuance-table">
+              <thead>
+                <tr>
+                  <th>Auction</th>
+                  <th>Issue</th>
+                  <th>Type</th>
+                  <th>Term</th>
+                  <th>CUSIP</th>
+                  <th>Offering</th>
+                  <th>Accepted</th>
+                  <th>Bid-To-Cover</th>
+                  <th>Result Rate</th>
+                  <th>Links</th>
+                </tr>
+              </thead>
+              <tbody id="recentAuctionsTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

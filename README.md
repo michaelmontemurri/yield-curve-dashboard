@@ -4,8 +4,7 @@ Static frontend dashboard for inspecting the U.S. Treasury Daily Treasury Yield 
 
 I built this with Codex for daily personal use, because I prefer a plot to a table and I wanted a more customizable version of https://www.ustreasuryyieldcurve.com/ for following U.S. Treasury yields. 
 
-It's a simple, locally run web app that fetches the latest yields from the [Official U.S. Treasury Daily Treasury Par Yield Curve Rates page](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve) 
-and generates visuals.
+It's a simple, locally run web app that fetches the latest yields from the [Official U.S. Treasury Daily Treasury Par Yield Curve Rates page](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve), fetches Treasury marketable-security auction data from TreasuryDirect, and generates visuals.
 
 
 ## Data Source
@@ -13,6 +12,7 @@ and generates visuals.
 Live fetch path used by the app:
 
 - [Official paginated Treasury XML feed for the full history](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=all&page=0)
+- [TreasuryDirect auction query JSONP feed](https://www.treasurydirect.gov/TA_WS/securities/jqsearch?format=jsonp&pagenum=0&pagesize=1000)
 
 Fallbacks:
 
@@ -31,6 +31,7 @@ nohup python3 -m http.server 8000 > server.log 2>&1 &
 Then open:
 
 - [http://localhost:8000](http://localhost:8000)
+- [http://localhost:8000/issuance.html](http://localhost:8000/issuance.html)
 
 To stop it later:
 ```bash
@@ -39,6 +40,13 @@ kill -9 <PID>
 ```
 
 ## Dashboard Behavior
+
+### Treasury Issuance
+
+- `issuance.html` loads recent auction rows from TreasuryDirect's auction query service.
+- The page summarizes gross offering amount, completed auction count, weighted average bid-to-cover, indirect bidder share, and announced upcoming offering amount.
+- Visuals include monthly offering by security type, bid-to-cover vs offering size, accepted bidder allocation, offering amount by term, upcoming auctions, and a recent auction tape.
+- Filters let you choose lookback window, security type, whether to show announced auctions, and whether to include reopenings.
 
 ### Latest Yield Curve
 
