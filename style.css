@@ -402,6 +402,10 @@ input {
   min-width: 170px;
 }
 
+.control-field--compact {
+  min-width: 220px;
+}
+
 .control-field span {
   font-size: 0.78rem;
   letter-spacing: 0.08em;

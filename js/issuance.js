@@ -1,8 +1,14 @@
 const CONFIG = {
   treasuryDirectJsonpBase: "https://www.treasurydirect.gov/TA_WS/securities/jqsearch",
   treasuryDirectSourcePage: "https://www.treasurydirect.gov/auctions/auction-query/",
+  benchmarkYieldXmlPageBase:
+    "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=all&page=",
+  benchmarkYieldSourcePage:
+    "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve",
+  benchmarkYieldSnapshotPath: "data/sample_treasury_yields.csv",
   pageSize: 1000,
   maxPages: 3,
+  maxBenchmarkYieldPages: 80,
   defaultLookbackMonths: 12,
   maxRecentTableRows: 36,
   maxUpcomingTableRows: 16,
@@ -13,10 +19,31 @@ const CONFIG = {
     selectedTypes: "yield-curve-dashboard.issuance-types",
     includeUpcoming: "yield-curve-dashboard.issuance-include-upcoming",
     includeReopenings: "yield-curve-dashboard.issuance-include-reopenings",
+    demandMaturityFilter: "yield-curve-dashboard.issuance-demand-maturity",
+    allocationMaturityFilter: "yield-curve-dashboard.issuance-allocation-maturity",
   },
 };
 
 const TYPE_ORDER = ["Bill", "CMB", "Note", "Bond", "TIPS", "FRN"];
+const ALL_DEMAND_MATURITIES = "all";
+const DEMAND_MATURITY_SEPARATOR = "::";
+const NOMINAL_PROXY_TYPES = new Set(["Bill", "CMB", "Note", "Bond"]);
+
+const BENCHMARK_MATURITY_DEFS = [
+  { key: "1M", label: "1M", months: 1, xmlField: "BC_1MONTH", csvAliases: ["1 Mo", "1M", "BC_1MONTH"] },
+  { key: "2M", label: "2M", months: 2, xmlField: "BC_2MONTH", csvAliases: ["2 Mo", "2M", "BC_2MONTH"] },
+  { key: "3M", label: "3M", months: 3, xmlField: "BC_3MONTH", csvAliases: ["3 Mo", "3M", "BC_3MONTH"] },
+  { key: "4M", label: "4M", months: 4, xmlField: "BC_4MONTH", csvAliases: ["4 Mo", "4M", "BC_4MONTH"] },
+  { key: "6M", label: "6M", months: 6, xmlField: "BC_6MONTH", csvAliases: ["6 Mo", "6M", "BC_6MONTH"] },
+  { key: "1Y", label: "1Y", months: 12, xmlField: "BC_1YEAR", csvAliases: ["1 Yr", "1Y", "BC_1YEAR"] },
+  { key: "2Y", label: "2Y", months: 24, xmlField: "BC_2YEAR", csvAliases: ["2 Yr", "2Y", "BC_2YEAR"] },
+  { key: "3Y", label: "3Y", months: 36, xmlField: "BC_3YEAR", csvAliases: ["3 Yr", "3Y", "BC_3YEAR"] },
+  { key: "5Y", label: "5Y", months: 60, xmlField: "BC_5YEAR", csvAliases: ["5 Yr", "5Y", "BC_5YEAR"] },
+  { key: "7Y", label: "7Y", months: 84, xmlField: "BC_7YEAR", csvAliases: ["7 Yr", "7Y", "BC_7YEAR"] },
+  { key: "10Y", label: "10Y", months: 120, xmlField: "BC_10YEAR", csvAliases: ["10 Yr", "10Y", "BC_10YEAR"] },
+  { key: "20Y", label: "20Y", months: 240, xmlField: "BC_20YEAR", csvAliases: ["20 Yr", "20Y", "BC_20YEAR"] },
+  { key: "30Y", label: "30Y", months: 360, xmlField: "BC_30YEAR", csvAliases: ["30 Yr", "30Y", "BC_30YEAR"] },
+];
 
 const TYPE_COLORS = {
   Bill: "#0f766e",
@@ -60,8 +87,15 @@ const dom = {};
 
 const state = {
   rows: [],
+  benchmarkYieldRecords: [],
+  benchmarkYieldRecordDates: [],
+  benchmarkYieldRecordByDate: new Map(),
+  benchmarkYieldSource: null,
+  benchmarkYieldStatus: "idle",
   totalAvailableRows: 0,
   selectedTypes: new Set(TYPE_ORDER),
+  demandMaturityFilter: ALL_DEMAND_MATURITIES,
+  allocationMaturityFilter: ALL_DEMAND_MATURITIES,
   lookbackMonths: CONFIG.defaultLookbackMonths,
   includeUpcoming: true,
   includeReopenings: true,
@@ -110,6 +144,7 @@ function cacheDom() {
   dom.includeUpcomingToggle = document.getElementById("includeUpcomingToggle");
   dom.includeReopeningsToggle = document.getElementById("includeReopeningsToggle");
   dom.issuanceTypeToggles = document.getElementById("issuanceTypeToggles");
+  dom.auctionDemandMaturitySelect = document.getElementById("auctionDemandMaturitySelect");
   dom.issuanceFilterSummary = document.getElementById("issuanceFilterSummary");
   dom.periodOfferingAmount = document.getElementById("periodOfferingAmount");
   dom.periodAuctionCount = document.getElementById("periodAuctionCount");
@@ -119,6 +154,8 @@ function cacheDom() {
   dom.issuanceWindowLabel = document.getElementById("issuanceWindowLabel");
   dom.monthlyIssuanceChart = document.getElementById("monthlyIssuanceChart");
   dom.bidToCoverChart = document.getElementById("bidToCoverChart");
+  dom.auctionDemandProxyNote = document.getElementById("auctionDemandProxyNote");
+  dom.bidderAllocationMaturitySelect = document.getElementById("bidderAllocationMaturitySelect");
   dom.bidderAllocationChart = document.getElementById("bidderAllocationChart");
   dom.termMixChart = document.getElementById("termMixChart");
   dom.upcomingAuctionsTable = document.getElementById("upcomingAuctionsTable");
@@ -156,6 +193,18 @@ function bindEvents() {
 
   dom.includeReopeningsToggle.addEventListener("change", () => {
     state.includeReopenings = dom.includeReopeningsToggle.checked;
+    persistPreferences();
+    renderAll();
+  });
+
+  dom.auctionDemandMaturitySelect.addEventListener("change", () => {
+    state.demandMaturityFilter = dom.auctionDemandMaturitySelect.value;
+    persistPreferences();
+    renderAll();
+  });
+
+  dom.bidderAllocationMaturitySelect.addEventListener("change", () => {
+    state.allocationMaturityFilter = dom.bidderAllocationMaturitySelect.value;
     persistPreferences();
     renderAll();
   });
@@ -217,6 +266,16 @@ function hydratePreferences() {
     state.includeReopenings = storedReopenings === "true";
   }
 
+  const storedDemandMaturity = localStorage.getItem(CONFIG.storageKeys.demandMaturityFilter);
+  if (storedDemandMaturity) {
+    state.demandMaturityFilter = storedDemandMaturity;
+  }
+
+  const storedAllocationMaturity = localStorage.getItem(CONFIG.storageKeys.allocationMaturityFilter);
+  if (storedAllocationMaturity) {
+    state.allocationMaturityFilter = storedAllocationMaturity;
+  }
+
   dom.issuanceLookbackSelect.value = String(state.lookbackMonths);
   if (dom.issuanceLookbackSelect.value !== String(state.lookbackMonths)) {
     state.lookbackMonths = CONFIG.defaultLookbackMonths;
@@ -231,6 +290,8 @@ function persistPreferences() {
   localStorage.setItem(CONFIG.storageKeys.selectedTypes, JSON.stringify([...state.selectedTypes]));
   localStorage.setItem(CONFIG.storageKeys.includeUpcoming, String(state.includeUpcoming));
   localStorage.setItem(CONFIG.storageKeys.includeReopenings, String(state.includeReopenings));
+  localStorage.setItem(CONFIG.storageKeys.demandMaturityFilter, state.demandMaturityFilter);
+  localStorage.setItem(CONFIG.storageKeys.allocationMaturityFilter, state.allocationMaturityFilter);
 }
 
 async function refreshAuctionData() {
@@ -278,10 +339,15 @@ async function refreshAuctionData() {
 
     updateTypeToggleAvailability();
     updateStatusCards();
+    state.benchmarkYieldStatus = "loading";
+    renderAll();
+    const benchmarkYieldsLoaded = await refreshBenchmarkYieldData();
     renderAll();
     setStatus(
-      `Loaded ${rows.length.toLocaleString()} recent auction rows from TreasuryDirect.`,
-      "info",
+      benchmarkYieldsLoaded
+        ? `Loaded ${rows.length.toLocaleString()} recent auction rows and Treasury benchmark yields for rough proxy-tail hover data.`
+        : `Loaded ${rows.length.toLocaleString()} recent auction rows from TreasuryDirect. Benchmark yields are unavailable, so proxy-tail hover data is hidden.`,
+      benchmarkYieldsLoaded ? "info" : "warning",
       { badge: "TreasuryDirect" }
     );
     return true;
@@ -348,6 +414,260 @@ function fetchTreasuryDirectPage(pageNumber) {
     script.src = url.href;
     document.head.append(script);
   });
+}
+
+async function refreshBenchmarkYieldData() {
+  state.benchmarkYieldStatus = "loading";
+  renderAuctionDemandProxyNote();
+  setStatus("Fetching Treasury benchmark yield curve history for rough proxy-tail calculations.", "warning", {
+    badge: "Benchmarks",
+  });
+
+  try {
+    const records = await fetchBenchmarkYieldHistory((pageNumber, rowCount) => {
+      if (pageNumber % 5 !== 0) {
+        return;
+      }
+      setStatus(
+        `Fetched Treasury benchmark page ${pageNumber + 1}; ${rowCount.toLocaleString()} yield rows accumulated.`,
+        "warning",
+        { badge: "Benchmarks" }
+      );
+    });
+    applyBenchmarkYieldRecords(records, {
+      label: "Official Treasury par yield curve",
+      sourceUrl: CONFIG.benchmarkYieldSourcePage,
+    });
+    state.benchmarkYieldStatus = "ready";
+    return true;
+  } catch (_officialError) {
+    try {
+      const snapshotText = await fetchText(CONFIG.benchmarkYieldSnapshotPath);
+      const records = parseBenchmarkYieldCsv(snapshotText);
+      applyBenchmarkYieldRecords(records, {
+        label: "Bundled Treasury yield snapshot",
+        sourceUrl: CONFIG.benchmarkYieldSnapshotPath,
+      });
+      state.benchmarkYieldStatus = "snapshot";
+      return true;
+    } catch (_snapshotError) {
+      state.benchmarkYieldRecords = [];
+      state.benchmarkYieldRecordDates = [];
+      state.benchmarkYieldRecordByDate = new Map();
+      state.benchmarkYieldSource = null;
+      state.benchmarkYieldStatus = "error";
+      return false;
+    }
+  }
+}
+
+async function fetchBenchmarkYieldHistory(onProgress) {
+  const rows = [];
+  const targetDate = state.latestCompletedAuctionDate
+    ? shiftIsoDate(state.latestCompletedAuctionDate, { days: -1 })
+    : "";
+
+  for (let pageNumber = 0; pageNumber < CONFIG.maxBenchmarkYieldPages; pageNumber += 1) {
+    const xmlText = await fetchText(`${CONFIG.benchmarkYieldXmlPageBase}${pageNumber}`);
+    const pageRows = parseBenchmarkYieldXmlPage(xmlText);
+
+    if (!pageRows.length) {
+      break;
+    }
+
+    rows.push(...pageRows);
+    if (typeof onProgress === "function") {
+      onProgress(pageNumber, rows.length);
+    }
+
+    const pageLatestDate = pageRows.at(-1)?.date;
+    if (targetDate && pageLatestDate && pageLatestDate >= targetDate) {
+      break;
+    }
+  }
+
+  if (!rows.length) {
+    throw new Error("The Treasury benchmark yield feed returned no rows.");
+  }
+
+  return rows;
+}
+
+async function fetchText(url) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  return response.text();
+}
+
+function parseBenchmarkYieldXmlPage(xmlText) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(xmlText, "application/xml");
+
+  if (xml.querySelector("parsererror")) {
+    throw new Error("The Treasury benchmark yield feed could not be parsed.");
+  }
+
+  return Array.from(xml.getElementsByTagName("entry"))
+    .map((entry) => {
+      const propertiesNode =
+        entry.querySelector("m\\:properties, properties") ||
+        entry.getElementsByTagNameNS(
+          "http://schemas.microsoft.com/ado/2007/08/dataservices/metadata",
+          "properties"
+        )[0];
+
+      if (!propertiesNode) {
+        return null;
+      }
+
+      const propertyMap = {};
+      Array.from(propertiesNode.children).forEach((child) => {
+        const fieldName = child.localName || child.nodeName.split(":").pop();
+        propertyMap[fieldName] = child.textContent.trim();
+      });
+
+      return normalizeBenchmarkYieldRecord(propertyMap);
+    })
+    .filter(Boolean);
+}
+
+function parseBenchmarkYieldCsv(csvText) {
+  const cleanText = csvText.replace(/^\uFEFF/, "").trim();
+  if (!cleanText) {
+    throw new Error("The Treasury benchmark yield snapshot is empty.");
+  }
+
+  const lines = cleanText.split(/\r?\n/).filter((line) => line.trim());
+  const headers = splitCsvLine(lines[0]).map((header) => normalizeHeader(header));
+
+  return lines
+    .slice(1)
+    .map((line) => {
+      const values = splitCsvLine(line);
+      const row = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index]?.trim() ?? "";
+      });
+      return normalizeBenchmarkYieldRecord(row);
+    })
+    .filter(Boolean);
+}
+
+function splitCsvLine(line) {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values;
+}
+
+function normalizeBenchmarkYieldRecord(raw) {
+  const record = {
+    date: normalizeDateValue(raw.NEW_DATE || raw.new_date || raw.Date || raw.date || raw["new date"]),
+  };
+
+  if (!record.date) {
+    return null;
+  }
+
+  BENCHMARK_MATURITY_DEFS.forEach((definition) => {
+    const candidateKeys = [
+      definition.xmlField,
+      definition.xmlField.toLowerCase(),
+      ...definition.csvAliases,
+      ...definition.csvAliases.map((alias) => normalizeHeader(alias)),
+    ];
+
+    let rawValue = null;
+    for (const key of candidateKeys) {
+      if (raw[key] !== undefined) {
+        rawValue = raw[key];
+        break;
+      }
+
+      const normalizedKey = normalizeHeader(key);
+      if (raw[normalizedKey] !== undefined) {
+        rawValue = raw[normalizedKey];
+        break;
+      }
+    }
+
+    record[definition.key] = parseNumber(rawValue);
+  });
+
+  return record;
+}
+
+function applyBenchmarkYieldRecords(records, sourceMeta) {
+  const deduped = new Map();
+
+  records.forEach((record) => {
+    if (!record?.date) {
+      return;
+    }
+
+    const hasAnyValue = BENCHMARK_MATURITY_DEFS.some(
+      (definition) => record[definition.key] != null
+    );
+    if (!hasAnyValue) {
+      return;
+    }
+
+    deduped.set(record.date, {
+      ...record,
+      timestamp: Date.parse(`${record.date}T00:00:00Z`),
+    });
+  });
+
+  const prepared = Array.from(deduped.values()).sort(
+    (left, right) => left.timestamp - right.timestamp
+  );
+
+  if (!prepared.length) {
+    throw new Error("No usable benchmark yield rows were found.");
+  }
+
+  state.benchmarkYieldRecords = prepared;
+  state.benchmarkYieldRecordDates = prepared.map((record) => record.date);
+  state.benchmarkYieldRecordByDate = new Map(prepared.map((record) => [record.date, record]));
+  state.benchmarkYieldSource = sourceMeta;
+}
+
+function normalizeHeader(header) {
+  return String(header || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\./g, "")
+    .replace(/year/g, "yr")
+    .replace(/month/g, "mo");
 }
 
 function prepareAuctionRows(rawRows) {
@@ -450,7 +770,10 @@ function resolveResultRate(raw) {
 
 function renderAll() {
   const period = getPeriodContext();
+  updateDemandMaturityOptions(period);
+  updateAllocationMaturityOptions(period);
   renderFilterSummary(period);
+  renderAuctionDemandProxyNote();
   renderSummaryCards(period);
   renderMonthlyIssuanceChart(period);
   renderBidToCoverChart(period);
@@ -469,6 +792,9 @@ function renderEmptyState() {
   dom.upcomingOfferingAmount.textContent = "--";
   dom.issuanceWindowLabel.textContent = "--";
   dom.issuanceFilterSummary.textContent = "Filters apply after live data loads.";
+  renderAuctionDemandProxyNote();
+  resetDemandMaturityOptions();
+  resetAllocationMaturityOptions();
   renderEmptyChart(dom.monthlyIssuanceChart, "Auction issuance data will appear after TreasuryDirect loads.");
   renderEmptyChart(dom.bidToCoverChart, "Auction demand data will appear after TreasuryDirect loads.");
   renderEmptyChart(dom.bidderAllocationChart, "Bidder allocation data will appear after TreasuryDirect loads.");
@@ -522,6 +848,20 @@ function renderFilterSummary(period) {
     period.startDate && period.endDate
       ? `${formatMonthLabel(period.startDate)} - ${formatMonthLabel(period.endDate)}`
       : "--";
+}
+
+function renderAuctionDemandProxyNote() {
+  if (!dom.auctionDemandProxyNote) {
+    return;
+  }
+
+  const sourceLabel = state.benchmarkYieldSource?.label || "Treasury benchmark yields";
+  const loadingText =
+    state.benchmarkYieldStatus === "loading"
+      ? " Benchmark yields are still loading, so proxy-tail hover data may be unavailable for a moment."
+      : "";
+
+  dom.auctionDemandProxyNote.textContent = `Hover shows a rough proxy tail: auction result rate minus the prior available ${sourceLabel} for the matched benchmark maturity. This is not the actual auction tail because when-issued yield data is not available here.${loadingText} For bills, the auction result is a discount rate while the benchmark is a par yield, so treat that proxy as especially rough.`;
 }
 
 function renderSummaryCards(period) {
@@ -607,7 +947,12 @@ function renderMonthlyIssuanceChart(period) {
 }
 
 function renderBidToCoverChart(period) {
-  const rows = period.completedRows.filter((row) => row.bidToCover != null);
+  const demandMaturity = parseDemandMaturityFilter(state.demandMaturityFilter);
+  const rows = filterRowsByDemandMaturity(
+    period.completedRows.filter((row) => row.bidToCover != null),
+    demandMaturity
+  );
+
   if (!rows.length) {
     renderEmptyChart(dom.bidToCoverChart, "No bid-to-cover data matches the current filters.");
     return;
@@ -622,17 +967,22 @@ function renderBidToCoverChart(period) {
         return null;
       }
 
+      const proxyContexts = typeRows.map(resolveAuctionTailProxyContext);
+
       return {
         type: "scatter",
         mode: "markers",
-        name: type,
+        name: demandMaturity ? `${type} ${demandMaturity.term}` : type,
         x: typeRows.map((row) => row.auctionDate),
         y: typeRows.map((row) => row.bidToCover),
         text: typeRows.map((row) => `${row.term} ${row.cusip}`),
-        customdata: typeRows.map((row) => [
+        customdata: typeRows.map((row, index) => [
           formatMoney(row.offeringAmount),
           formatHumanDate(row.issueDate),
           row.isReopening ? "Reopening" : "New issue",
+          formatResultRate(row),
+          formatBenchmarkYieldForHover(proxyContexts[index]),
+          formatProxyTailForHover(proxyContexts[index]),
         ]),
         marker: {
           color: TYPE_COLORS[type],
@@ -644,7 +994,7 @@ function renderBidToCoverChart(period) {
           line: { color: "rgba(255,255,255,0.5)", width: 1 },
         },
         hovertemplate:
-          "%{text}<br>Auction %{x}<br>Issue %{customdata[1]}<br>Offering %{customdata[0]}<br>Bid-to-cover %{y:.2f}x<br>%{customdata[2]}<extra></extra>",
+          "%{text}<br>Auction %{x|%b %-d, %Y}<br>Issue %{customdata[1]}<br>Offering %{customdata[0]}<br>Bid-to-cover %{y:.2f}x<br>Result %{customdata[3]}<br>Benchmark %{customdata[4]}<br>Proxy tail %{customdata[5]}<br>%{customdata[2]}<extra></extra>",
       };
     })
     .filter(Boolean);
@@ -666,9 +1016,286 @@ function renderBidToCoverChart(period) {
   );
 }
 
+function updateDemandMaturityOptions(period) {
+  state.demandMaturityFilter = updateChartMaturityOptions({
+    select: dom.auctionDemandMaturitySelect,
+    rows: period.completedRows.filter((row) => row.bidToCover != null),
+    selectedValue: state.demandMaturityFilter,
+  });
+}
+
+function updateAllocationMaturityOptions(period) {
+  state.allocationMaturityFilter = updateChartMaturityOptions({
+    select: dom.bidderAllocationMaturitySelect,
+    rows: period.completedRows.filter(hasBidderAllocationFields),
+    selectedValue: state.allocationMaturityFilter,
+  });
+}
+
+function updateChartMaturityOptions({ select, rows, selectedValue }) {
+  const groupedTerms = new Map();
+
+  rows
+    .filter((row) => row.term && row.term !== "--")
+    .forEach((row) => {
+      if (!groupedTerms.has(row.type)) {
+        groupedTerms.set(row.type, new Set());
+      }
+      groupedTerms.get(row.type).add(row.term);
+    });
+
+  select.innerHTML = "";
+  appendMaturityOption(select, {
+    value: ALL_DEMAND_MATURITIES,
+    text: "All Maturities",
+  });
+
+  let hasSpecificOptions = false;
+  let hasSelectedOption = selectedValue === ALL_DEMAND_MATURITIES;
+
+  TYPE_ORDER.filter((type) => state.selectedTypes.has(type)).forEach((type) => {
+    const terms = Array.from(groupedTerms.get(type) || []).sort(sortTerms);
+    if (!terms.length) {
+      return;
+    }
+
+    const group = document.createElement("optgroup");
+    group.label = type;
+    terms.forEach((term) => {
+      const value = encodeDemandMaturityFilter(type, term);
+      appendMaturityOption(group, {
+        value,
+        text: `${term} ${type}`,
+      });
+      hasSpecificOptions = true;
+      if (value === selectedValue) {
+        hasSelectedOption = true;
+      }
+    });
+    select.appendChild(group);
+  });
+
+  if (!hasSelectedOption) {
+    selectedValue = ALL_DEMAND_MATURITIES;
+  }
+
+  select.value = selectedValue;
+  select.disabled = !hasSpecificOptions;
+
+  return selectedValue;
+}
+
+function resetDemandMaturityOptions() {
+  resetMaturityOptions(dom.auctionDemandMaturitySelect);
+}
+
+function resetAllocationMaturityOptions() {
+  resetMaturityOptions(dom.bidderAllocationMaturitySelect);
+}
+
+function resetMaturityOptions(select) {
+  select.innerHTML = "";
+  appendMaturityOption(select, {
+    value: ALL_DEMAND_MATURITIES,
+    text: "All Maturities",
+  });
+  select.value = ALL_DEMAND_MATURITIES;
+  select.disabled = true;
+}
+
+function appendMaturityOption(parent, { value, text }) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = text;
+  parent.appendChild(option);
+}
+
+function filterRowsByDemandMaturity(rows, demandMaturity) {
+  if (!demandMaturity) {
+    return rows;
+  }
+
+  return rows.filter(
+    (row) => row.type === demandMaturity.type && row.term === demandMaturity.term
+  );
+}
+
+function encodeDemandMaturityFilter(type, term) {
+  return [type, term].map((value) => encodeURIComponent(value)).join(DEMAND_MATURITY_SEPARATOR);
+}
+
+function parseDemandMaturityFilter(value) {
+  if (!value || value === ALL_DEMAND_MATURITIES) {
+    return null;
+  }
+
+  const [type, term, extra] = String(value).split(DEMAND_MATURITY_SEPARATOR);
+  if (!type || !term || extra !== undefined) {
+    return null;
+  }
+
+  try {
+    return {
+      type: decodeURIComponent(type),
+      term: decodeURIComponent(term),
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function resolveAuctionTailProxyContext(row) {
+  if (!NOMINAL_PROXY_TYPES.has(row.type)) {
+    return resolveUnsupportedProxyContext(row);
+  }
+
+  if (!state.benchmarkYieldRecords.length) {
+    return { status: "unavailable", reason: "benchmark yields unavailable" };
+  }
+
+  if (row.resultRate.value == null) {
+    return { status: "unavailable", reason: "auction result rate unavailable" };
+  }
+
+  const benchmarkDefinition = resolveBenchmarkMaturityDefinition(row.term);
+  if (!benchmarkDefinition) {
+    return { status: "unavailable", reason: "no matching benchmark maturity" };
+  }
+
+  const targetDate = row.auctionDate ? shiftIsoDate(row.auctionDate, { days: -1 }) : "";
+  const benchmarkRecord = resolvePriorBenchmarkYieldRecord(targetDate, benchmarkDefinition.key);
+  const benchmarkYield = benchmarkRecord?.[benchmarkDefinition.key];
+
+  if (benchmarkYield == null) {
+    return {
+      status: "unavailable",
+      reason: `no prior ${benchmarkDefinition.label} benchmark yield`,
+      benchmarkDefinition,
+    };
+  }
+
+  return {
+    status: "ready",
+    benchmarkDefinition,
+    benchmarkDate: benchmarkRecord.date,
+    benchmarkYield,
+    proxyTailBasisPoints: (row.resultRate.value - benchmarkYield) * 100,
+    resultRateLabel: row.resultRate.label,
+  };
+}
+
+function resolveUnsupportedProxyContext(row) {
+  if (row.type === "TIPS") {
+    return {
+      status: "unsupported",
+      benchmarkText: "unavailable for TIPS",
+      proxyText: "Proxy tail unavailable: needs WI real yield data",
+    };
+  }
+
+  if (row.type === "FRN") {
+    return {
+      status: "unsupported",
+      benchmarkText: "unavailable for FRN",
+      proxyText: "Proxy tail unavailable: needs WI FRN margin data",
+    };
+  }
+
+  return {
+    status: "unsupported",
+    benchmarkText: `unavailable for ${row.type || "this security type"}`,
+    proxyText: "Proxy tail unavailable for this security type",
+  };
+}
+
+function resolveBenchmarkMaturityDefinition(term) {
+  const months = termToMonths(term);
+  if (!Number.isFinite(months) || months <= 0) {
+    return null;
+  }
+
+  const nearest = BENCHMARK_MATURITY_DEFS.reduce(
+    (best, definition) => {
+      const distance = Math.abs(definition.months - months);
+      return !best || distance < best.distance ? { definition, distance } : best;
+    },
+    null
+  );
+
+  if (!nearest) {
+    return null;
+  }
+
+  const tolerance = months <= 12 ? 1.2 : 18;
+  return nearest.distance <= tolerance ? nearest.definition : null;
+}
+
+function resolvePriorBenchmarkYieldRecord(targetDate, benchmarkKey) {
+  if (!targetDate || !benchmarkKey || !state.benchmarkYieldRecordDates.length) {
+    return null;
+  }
+
+  let left = 0;
+  let right = state.benchmarkYieldRecordDates.length - 1;
+  let bestDate = "";
+
+  while (left <= right) {
+    const middle = Math.floor((left + right) / 2);
+    const date = state.benchmarkYieldRecordDates[middle];
+    if (date <= targetDate) {
+      bestDate = date;
+      left = middle + 1;
+    } else {
+      right = middle - 1;
+    }
+  }
+
+  while (bestDate) {
+    const record = state.benchmarkYieldRecordByDate.get(bestDate);
+    if (record?.[benchmarkKey] != null) {
+      return record;
+    }
+
+    const previousIndex = state.benchmarkYieldRecordDates.indexOf(bestDate) - 1;
+    bestDate = previousIndex >= 0 ? state.benchmarkYieldRecordDates[previousIndex] : "";
+  }
+
+  return null;
+}
+
+function formatBenchmarkYieldForHover(context) {
+  if (context?.status === "unsupported") {
+    return context.benchmarkText;
+  }
+
+  if (context?.status !== "ready") {
+    return context?.reason || "unavailable";
+  }
+
+  return `${context.benchmarkDefinition.label} par ${context.benchmarkYield.toFixed(3)}% on ${formatHumanDate(
+    context.benchmarkDate
+  )}`;
+}
+
+function formatProxyTailForHover(context) {
+  if (context?.status === "unsupported") {
+    return context.proxyText;
+  }
+
+  if (context?.status !== "ready") {
+    return context?.reason || "unavailable";
+  }
+
+  const basisNote = context.resultRateLabel === "Discount" ? "; discount vs par" : "";
+  return `${formatBasisPoints(context.proxyTailBasisPoints)} rough proxy, not WI tail${basisNote}`;
+}
+
 function renderBidderAllocationChart(period) {
-  const rows = period.completedRows
-    .filter((row) => row.primaryDealerAccepted || row.indirectBidderAccepted || row.directBidderAccepted)
+  const allocationMaturity = parseDemandMaturityFilter(state.allocationMaturityFilter);
+  const rows = filterRowsByDemandMaturity(
+    period.completedRows.filter(hasBidderAllocationFields),
+    allocationMaturity
+  )
     .slice(-CONFIG.maxAllocationRows);
 
   if (!rows.length) {
@@ -714,21 +1341,25 @@ function renderBidderAllocationChart(period) {
     dom.bidderAllocationChart,
     traces,
     buildBaseLayout({
-      margin: { t: 24, r: 24, b: 92, l: 74 },
+      margin: { t: 58, r: 24, b: 92, l: 70 },
       barmode: "stack",
       hovermode: "x unified",
       xaxis: { title: { text: "Recent Completed Auctions" }, type: "category", tickangle: -45 },
       yaxis: {
-        title: { text: "Share Of Known Competitive Accepted (%)" },
+        title: { text: "Accepted Share (%)", standoff: 10 },
         range: [0, 100],
       },
       legend: {
         orientation: "h",
         x: 0,
-        y: 1.12,
+        y: 1.2,
       },
     })
   );
+}
+
+function hasBidderAllocationFields(row) {
+  return row.primaryDealerAccepted || row.indirectBidderAccepted || row.directBidderAccepted;
 }
 
 function renderTermMixChart(period) {
@@ -1178,7 +1809,7 @@ function resolveLatestDate(dates) {
   return dates.filter(Boolean).sort().at(-1) || "";
 }
 
-function shiftIsoDate(date, { months = 0 } = {}) {
+function shiftIsoDate(date, { days = 0, months = 0 } = {}) {
   const [year, month, day] = date.split("-").map(Number);
   let nextYear = year;
   let nextMonth = month + months;
@@ -1194,7 +1825,7 @@ function shiftIsoDate(date, { months = 0 } = {}) {
   }
 
   const maxDay = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate();
-  const shifted = new Date(Date.UTC(nextYear, nextMonth - 1, Math.min(day, maxDay)));
+  const shifted = new Date(Date.UTC(nextYear, nextMonth - 1, Math.min(day, maxDay) + days));
   return dateToIso(shifted);
 }
 
@@ -1279,6 +1910,10 @@ function formatShare(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatBasisPoints(value) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)} bp`;
+}
+
 function formatResultRate(row) {
   if (row.resultRate.value == null) {
     return "--";
@@ -1289,6 +1924,10 @@ function formatResultRate(row) {
 
 function sortTypes(left, right) {
   return TYPE_ORDER.indexOf(left) - TYPE_ORDER.indexOf(right);
+}
+
+function sortTerms(left, right) {
+  return termSortValue(left) - termSortValue(right) || left.localeCompare(right);
 }
 
 function sumBy(rows, key) {
@@ -1314,24 +1953,24 @@ function weightedAverage(rows, valueAccessor, weightAccessor) {
   return weighted.weight ? weighted.value / weighted.weight : null;
 }
 
-function termSortValue(term) {
+function termToMonths(term) {
   const clean = String(term || "");
   let months = 0;
   let matched = false;
-  const unitPattern = /(\d+)\s*-\s*(Year|Month|Week|Day)|(\d+)\s*(Year|Month|Week|Day)/gi;
+  const unitPattern = /(\d+)\s*-\s*(Years?|Months?|Weeks?|Days?)|(\d+)\s*(Years?|Months?|Weeks?|Days?)/gi;
   let match = unitPattern.exec(clean);
 
   while (match) {
     matched = true;
     const amount = Number(match[1] || match[3]);
     const unit = String(match[2] || match[4]).toLowerCase();
-    if (unit === "year") {
+    if (unit.startsWith("year")) {
       months += amount * 12;
-    } else if (unit === "month") {
+    } else if (unit.startsWith("month")) {
       months += amount;
-    } else if (unit === "week") {
+    } else if (unit.startsWith("week")) {
       months += amount / 4.348;
-    } else if (unit === "day") {
+    } else if (unit.startsWith("day")) {
       months += amount / 30.437;
     }
     match = unitPattern.exec(clean);
@@ -1343,4 +1982,8 @@ function termSortValue(term) {
 
   const numeric = Number.parseFloat(clean);
   return Number.isFinite(numeric) ? numeric : 9999;
+}
+
+function termSortValue(term) {
+  return termToMonths(term);
 }

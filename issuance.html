@@ -16,7 +16,7 @@
     />
     <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <script type="module" src="js/issuance.js"></script>
+    <script type="module" src="js/issuance.js?v=20260604-allocation-polish"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -77,8 +77,9 @@
 
           <div class="source-actions">
             <p class="source-note" id="auctionSourceNote">
-              The page uses TreasuryDirect's JSONP auction query endpoint so it
-              can run as a static browser dashboard.
+              The page uses TreasuryDirect's JSONP auction query endpoint and
+              Treasury's daily par yield curve feed so it can run as a static
+              browser dashboard.
             </p>
           </div>
         </div>
@@ -168,8 +169,18 @@
               <p class="eyebrow">Auction Demand</p>
               <h2>Bid-To-Cover And Offering Size</h2>
             </div>
+            <label class="control-field control-field--compact">
+              <span>Maturity</span>
+              <select id="auctionDemandMaturitySelect">
+                <option value="all">All Maturities</option>
+              </select>
+            </label>
           </div>
           <div class="chart chart--medium" id="bidToCoverChart"></div>
+          <p class="panel__hint" id="auctionDemandProxyNote">
+            Proxy tail appears after benchmark yields load. It is not the actual
+            auction tail because when-issued yield data is not available here.
+          </p>
         </section>
 
         <section class="panel panel--wide">
@@ -178,6 +189,12 @@
               <p class="eyebrow">Distribution</p>
               <h2>Accepted Bidder Allocation</h2>
             </div>
+            <label class="control-field control-field--compact">
+              <span>Maturity</span>
+              <select id="bidderAllocationMaturitySelect">
+                <option value="all">All Maturities</option>
+              </select>
+            </label>
           </div>
           <div class="chart chart--medium" id="bidderAllocationChart"></div>
         </section>
