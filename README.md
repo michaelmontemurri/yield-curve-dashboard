@@ -71,6 +71,8 @@ The spread cards are configurable. Defaults are:
 - `5s30s`: `30Y - 5Y`
 - `2s5s10s`: `2 * 5Y - 2Y - 10Y`
 
+![Key spread cards](images/key_spreads.png)
+
 Controls let you add:
 
 - Two-leg spreads, calculated as `first leg - second leg`.
@@ -85,13 +87,13 @@ Each card shows:
 - The latest available date.
 - A compact sparkline.
 
-Clicking a card opens a spread detail panel. The detail panel keeps the cards compact and shows the normalized empirical distribution of historical one-day changes for the selected spread. The chart uses 50 bins, fixes the x-axis to z-scores from `-4.5` to `4.5`, overlays a standard normal curve, and marks the current move's z-score. Because the histogram is z-scored, its mean is zero by construction; the raw average magnitude and standard deviation of historical daily changes are reported separately in basis points.
+Clicking a card opens a spread detail panel that shows the normalized empirical distribution of historical one-day changes for the selected spread. The chart uses 50 bins, fixes the x-axis to z-scores from `-4.5` to `4.5`, overlays a standard normal curve, and marks both zero and the current move's z-score.
 
 Distribution stats include:
 
 - Current level.
 - Current one-day change.
-- Average magnitude and standard deviation of raw historical one-day changes in basis points.
+- Mean magnitude and standard deviation of historical one-day changes.
 - Z-score.
 - Empirical percentile.
 - Post-2006 sample start and end dates.
