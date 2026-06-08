@@ -7,9 +7,10 @@ import {
   loadSpreadDefinitions,
   loadOverlayDates,
   persistHistoryMaturities,
-} from "./core.js?v=spread-controls-20260603-8";
-import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=spread-controls-20260603-8";
-import { buildPcaContext } from "./pca.js?v=spread-controls-20260603-8";
+} from "./core.js?v=spread-stats-20260608-5";
+import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=spread-stats-20260608-5";
+import { buildPcaContext } from "./pca.js?v=spread-stats-20260608-5";
+import { computeSpreadSeries } from "./spreads.js?v=spread-stats-20260608-5";
 import {
   addOverlayDate,
   applyPcaModeSelection,
@@ -48,7 +49,8 @@ import {
   removeSpreadDefinition,
   resetSpreadDefinitions,
   renderSpreadControls,
-} from "./rendering.js?v=spread-controls-20260603-8";
+  selectSpreadDefinition,
+} from "./rendering.js?v=spread-stats-20260608-5";
 
 // === Application Bootstrap ===
 document.addEventListener("DOMContentLoaded", init);
@@ -140,6 +142,8 @@ function cacheDom() {
   dom.resetSpreadsBtn = document.getElementById("resetSpreadsBtn");
   dom.spreadControlHint = document.getElementById("spreadControlHint");
   dom.spreadGrid = document.getElementById("spreadGrid");
+  dom.spreadDetailDrawer =
+    document.getElementById("spreadDetailDrawer") || createSpreadDetailDrawer();
   dom.historyMaturityToggles = document.getElementById("historyMaturityToggles");
   dom.historyRangeButtons = document.getElementById("historyRangeButtons");
   dom.historyYAxisButtons = document.getElementById("historyYAxisButtons");
@@ -417,12 +421,64 @@ function bindSpreadEvents() {
 
   dom.spreadGrid.addEventListener("click", (event) => {
     const removeButton = event.target.closest("[data-remove-spread]");
-    if (!removeButton) {
+    if (removeButton) {
+      removeSpreadDefinition(removeButton.dataset.removeSpread);
       return;
     }
 
-    removeSpreadDefinition(removeButton.dataset.removeSpread);
+    const spreadCard = event.target.closest("[data-spread-card]");
+    if (!spreadCard) {
+      return;
+    }
+
+    selectSpreadDefinition(spreadCard.dataset.spreadCard);
   });
+
+  dom.spreadGrid.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    if (event.target.closest("[data-remove-spread]")) {
+      return;
+    }
+
+    const spreadCard = event.target.closest("[data-spread-card]");
+    if (!spreadCard) {
+      return;
+    }
+
+    event.preventDefault();
+    selectSpreadDefinition(spreadCard.dataset.spreadCard);
+  });
+
+  if (dom.spreadDetailDrawer) {
+    dom.spreadDetailDrawer.addEventListener("click", (event) => {
+      const closeButton = event.target.closest("[data-close-spread-detail]");
+      if (!closeButton) {
+        return;
+      }
+
+      selectSpreadDefinition(null);
+    });
+  }
+}
+
+function createSpreadDetailDrawer() {
+  if (!dom.spreadGrid?.parentElement) {
+    return null;
+  }
+
+  const wrapper = dom.spreadGrid.parentElement;
+  wrapper.classList.add("spread-monitor-layout");
+
+  const drawer = document.createElement("aside");
+  drawer.className = "spread-detail-drawer";
+  drawer.id = "spreadDetailDrawer";
+  drawer.setAttribute("aria-label", "Spread distribution detail");
+  drawer.hidden = true;
+  wrapper.append(drawer);
+  return drawer;
 }
 
 // === Preferences And Data Loading ===
@@ -865,33 +921,7 @@ function applyDataset(records, sourceMeta) {
 function computeAllSpreadSeries(records) {
   const series = {};
   SPREAD_DEFS.forEach((spread) => {
-    series[spread.id] = records
-      .map((record) => {
-        if (spread.type === "butterfly") {
-          if (
-            record[spread.front] == null ||
-            record[spread.belly] == null ||
-            record[spread.back] == null
-          ) {
-            return null;
-          }
-
-          return {
-            date: record.date,
-            value: 2 * record[spread.belly] - record[spread.front] - record[spread.back],
-          };
-        }
-
-        if (record[spread.left] == null || record[spread.right] == null) {
-          return null;
-        }
-
-        return {
-          date: record.date,
-          value: record[spread.left] - record[spread.right],
-        };
-      })
-      .filter(Boolean);
+    series[spread.id] = computeSpreadSeries(spread, records);
   });
   return series;
 }

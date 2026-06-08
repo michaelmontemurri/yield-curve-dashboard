@@ -52,10 +52,6 @@ kill -9 <PID>
 - `issuance.html` is the Issuance page.
 - The page navigation at the top of each dashboard switches between the two.
 
-### Yield Curve Dashboard
-
-The Yield Curve page focuses on comparisons and historical context. The old standalone `Latest Yield Curve` plot has been removed; the latest curve is now shown in the comparison panel alongside selected historical dates and overlays.
-
 ### Historical Comparison
 
 - Compare the latest curve against a selected date.
@@ -84,12 +80,26 @@ Each card shows:
 
 - Current spread or butterfly value in basis points.
 - One-day change in basis points, computed versus the prior available Treasury observation.
+- The one-day move's z-score and empirical percentile versus the historical distribution of post-2006 one-day changes.
+- A directional interpretation such as normal steepening, significant flattening, belly cheapening, or belly richening.
 - The latest available date.
 - A compact sparkline.
 
-Selected cards persist in local storage. `Reset Defaults` restores `2s10s`, `5s30s`, and `2s5s10s`.
+Clicking a card opens a spread detail panel. The detail panel keeps the cards compact and shows the normalized empirical distribution of historical one-day changes for the selected spread. The chart uses 50 bins, fixes the x-axis to z-scores from `-4.5` to `4.5`, overlays a standard normal curve, and marks the current move's z-score. Because the histogram is z-scored, its mean is zero by construction; the raw average magnitude and standard deviation of historical daily changes are reported separately in basis points.
 
-![Overlayed Yield Curve](images/key_spreads.png)
+Distribution stats include:
+
+- Current level.
+- Current one-day change.
+- Average magnitude and standard deviation of raw historical one-day changes in basis points.
+- Z-score.
+- Empirical percentile.
+- Post-2006 sample start and end dates.
+- Observation count.
+
+Selected cards persist in local storage. `Reset Defaults` restores `2s10s`, `5s30s`, and `2s5s10s` and closes the spread detail panel.
+
+![Key spread cards and distribution detail](images/keyspread_details.png)
 
 
 ### Historical Yields

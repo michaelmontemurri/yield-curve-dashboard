@@ -1,4 +1,4 @@
-import { MATURITY_DEFS } from "./core.js?v=spread-controls-20260603-8";
+import { MATURITY_DEFS } from "./core.js?v=spread-stats-20260608-5";
 
 // === Utilities ===
 async function fetchText(url) {

@@ -9,7 +9,7 @@ import {
   persistOverlayDates,
   persistSpreadDefinitions,
   formatButterflyLabel,
-} from "./core.js?v=spread-controls-20260603-8";
+} from "./core.js?v=spread-stats-20260608-5";
 import {
   clampIsoDate,
   clampNumber,
@@ -26,7 +26,7 @@ import {
   shiftIsoDate,
   shortPcaLabel,
   transformationLabel,
-} from "./utils.js?v=spread-controls-20260603-8";
+} from "./utils.js?v=spread-stats-20260608-5";
 import {
   buildActivePcaResult,
   getCurrentBaselineModel,
@@ -34,13 +34,19 @@ import {
   validateComponentInterpretation,
   validateDifferencedIndexAlignment,
   validateExplainedVariance,
-} from "./pca.js?v=spread-controls-20260603-8";
-import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=spread-controls-20260603-8";
+} from "./pca.js?v=spread-stats-20260608-5";
+import {
+  computeDailyChangeStats,
+  computeSpreadSeries,
+  getDirectionalInterpretation,
+  getMoveSeverityLabel,
+} from "./spreads.js?v=spread-stats-20260608-5";
+import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=spread-stats-20260608-5";
 import {
   getRegimeOptionLabel,
   getRegimePresetDefinitions,
   resolveRegimePreset,
-} from "./regimes.js?v=spread-controls-20260603-8";
+} from "./regimes.js?v=spread-stats-20260608-5";
 
 // === Rendering ===
 function renderAll() {
@@ -220,17 +226,31 @@ function renderSpreadCards() {
   dom.spreadGrid.innerHTML = "";
 
   if (!spreads.length) {
+    state.selectedSpreadId = null;
     const emptyState = document.createElement("p");
     emptyState.className = "panel__hint spread-grid__empty";
     emptyState.textContent = "No spread cards selected.";
     dom.spreadGrid.append(emptyState);
+    renderSpreadDetailDrawer();
     return;
   }
 
   spreads.forEach((spread) => {
-    const series = computeSpreadSeries(spread);
+    const series = computeSpreadSeries(spread, state.records);
+    const stats = computeDailyChangeStats(series, {
+      sampleStart: CONFIG.spreadStatsSampleStart,
+    });
+    const latestPoint = series.at(-1);
+    const severityLabel = getMoveSeverityLabel(stats.zScore);
+    const isSelected = state.selectedSpreadId === spread.id;
+
     const card = document.createElement("article");
     card.className = "spread-card";
+    card.dataset.spreadCard = spread.id;
+    card.tabIndex = 0;
+    card.role = "button";
+    card.setAttribute("aria-label", `Open ${spread.label} distribution detail`);
+    card.classList.toggle("is-selected", isSelected);
 
     const header = document.createElement("div");
     header.className = "spread-card__header";
@@ -257,33 +277,40 @@ function renderSpreadCards() {
     const changeNode = document.createElement("p");
     changeNode.className = "spread-card__change";
 
+    const statsNode = document.createElement("p");
+    statsNode.className = "spread-card__zscore";
+
+    const interpretationNode = document.createElement("p");
+    interpretationNode.className = "spread-card__interpretation";
+
     const sparkNode = document.createElement("div");
     sparkNode.className = "chart chart--spark";
 
-    card.append(header, valueNode, noteNode, changeNode, sparkNode);
+    card.append(header, valueNode, noteNode, changeNode, statsNode, interpretationNode, sparkNode);
     dom.spreadGrid.append(card);
 
     if (!series.length) {
       card.classList.remove("is-positive", "is-negative");
       valueNode.textContent = "--";
       noteNode.textContent = "Insufficient data";
-      changeNode.textContent = "1D CHG --";
+      changeNode.textContent = "1D: --";
+      statsNode.textContent = "Z: n/a";
+      interpretationNode.textContent = "Insufficient history";
       renderSparklineFallback(sparkNode, "No data");
       return;
     }
 
-    const latestPoint = series.at(-1);
-    const previousPoint = series.at(-2);
-    const oneDayChange = previousPoint ? (latestPoint.value - previousPoint.value) * 100 : null;
     card.classList.toggle("is-positive", latestPoint.value >= 0);
     card.classList.toggle("is-negative", latestPoint.value < 0);
 
-    valueNode.textContent = formatBasisPoints(latestPoint.value * 100);
+    valueNode.textContent = formatBasisPoints(latestPoint.value);
     noteNode.textContent = `As of ${formatHumanDate(latestPoint.date)}`;
-    changeNode.classList.toggle("is-positive", oneDayChange != null && oneDayChange > 0);
-    changeNode.classList.toggle("is-negative", oneDayChange != null && oneDayChange < 0);
+    changeNode.classList.toggle("is-positive", Number.isFinite(stats.currentChange) && stats.currentChange > 0);
+    changeNode.classList.toggle("is-negative", Number.isFinite(stats.currentChange) && stats.currentChange < 0);
     changeNode.textContent =
-      oneDayChange == null ? "1D CHG --" : `1D CHG ${formatBasisPoints(oneDayChange)}`;
+      Number.isFinite(stats.currentChange) ? `1D: ${formatBasisPoints(stats.currentChange)}` : "1D: --";
+    statsNode.textContent = formatMoveStatsLine(stats);
+    interpretationNode.textContent = formatMoveInterpretationLine(spread, stats, severityLabel);
 
     const sparklineSeries = series.slice(-CONFIG.sparklineLookback);
     if (!window.Plotly) {
@@ -298,7 +325,7 @@ function renderSpreadCards() {
           type: "scatter",
           mode: "lines",
           x: sparklineSeries.map((point) => point.date),
-          y: sparklineSeries.map((point) => point.value * 100),
+          y: sparklineSeries.map((point) => point.value),
           line: {
             color: latestPoint.value >= 0 ? palette.positive : palette.negative,
             width: 2,
@@ -315,6 +342,8 @@ function renderSpreadCards() {
       { displayModeBar: false }
     );
   });
+
+  renderSpreadDetailDrawer();
 }
 
 function renderSparklineFallback(container, message) {
@@ -405,6 +434,7 @@ function addSpreadDefinition(left, right) {
 
   state.spreadDefs.push({
     id: `${left}_${right}`,
+    type: "spread",
     label: `${left}-${right}`,
     left,
     right,
@@ -455,6 +485,7 @@ function addButterflyDefinition(front, belly, back) {
 
 function removeSpreadDefinition(spreadId) {
   state.spreadDefs = state.spreadDefs.filter((spread) => spread.id !== spreadId);
+  syncSelectedSpreadDefinition();
   persistSpreadDefinitions();
   renderSpreadControls();
   renderSpreadCards();
@@ -462,39 +493,338 @@ function removeSpreadDefinition(spreadId) {
 
 function resetSpreadDefinitions() {
   state.spreadDefs = SPREAD_DEFS.map((spread) => ({ ...spread }));
+  state.selectedSpreadId = null;
   persistSpreadDefinitions();
   renderSpreadControls("Default spreads restored.");
   renderSpreadCards();
 }
 
-function computeSpreadSeries(spread) {
-  return state.records
-    .map((record) => {
-      if (spread.type === "butterfly") {
-        if (
-          record[spread.front] == null ||
-          record[spread.belly] == null ||
-          record[spread.back] == null
-        ) {
-          return null;
-        }
+function selectSpreadDefinition(spreadId) {
+  const spreads = Array.isArray(state.spreadDefs) ? state.spreadDefs : [];
+  state.selectedSpreadId =
+    spreadId && spreads.some((spread) => spread.id === spreadId) ? spreadId : null;
+  renderSpreadCards();
+}
 
-        return {
-          date: record.date,
-          value: 2 * record[spread.belly] - record[spread.front] - record[spread.back],
-        };
-      }
+function syncSelectedSpreadDefinition() {
+  const spreads = Array.isArray(state.spreadDefs) ? state.spreadDefs : [];
+  if (state.selectedSpreadId && !spreads.some((spread) => spread.id === state.selectedSpreadId)) {
+    state.selectedSpreadId = null;
+  }
+}
 
-      if (record[spread.left] == null || record[spread.right] == null) {
-        return null;
-      }
+function renderSpreadDetailDrawer() {
+  if (!dom.spreadDetailDrawer) {
+    return;
+  }
 
-      return {
-        date: record.date,
-        value: record[spread.left] - record[spread.right],
-      };
+  syncSelectedSpreadDefinition();
+  const spread = (Array.isArray(state.spreadDefs) ? state.spreadDefs : []).find(
+    (definition) => definition.id === state.selectedSpreadId
+  );
+
+  if (!spread) {
+    dom.spreadDetailDrawer.hidden = true;
+    dom.spreadDetailDrawer.innerHTML = "";
+    dom.spreadDetailDrawer.parentElement?.classList.remove("has-detail");
+    return;
+  }
+
+  const series = computeSpreadSeries(spread, state.records);
+  const stats = computeDailyChangeStats(series, {
+    sampleStart: CONFIG.spreadStatsSampleStart,
+  });
+  const latestPoint = series.at(-1);
+
+  dom.spreadDetailDrawer.hidden = false;
+  dom.spreadDetailDrawer.innerHTML = "";
+  dom.spreadDetailDrawer.parentElement?.classList.add("has-detail");
+
+  const header = document.createElement("div");
+  header.className = "spread-detail__header";
+
+  const headerText = document.createElement("div");
+  headerText.className = "spread-detail__title-block";
+  const title = document.createElement("h3");
+  title.textContent = "Spread Detail";
+  const subtitle = document.createElement("p");
+  subtitle.className = "spread-detail__subtitle";
+  subtitle.textContent = spread.label;
+  headerText.append(title, subtitle);
+
+  const closeButton = document.createElement("button");
+  closeButton.className = "button button--ghost spread-detail__close";
+  closeButton.type = "button";
+  closeButton.dataset.closeSpreadDetail = "true";
+  closeButton.textContent = "Close";
+  closeButton.setAttribute("aria-label", `Close ${spread.label} detail`);
+  header.append(headerText, closeButton);
+
+  const distributionHeading = document.createElement("h4");
+  distributionHeading.className = "spread-detail__section-title";
+  distributionHeading.textContent = "Distribution of Historical 1D Change Z-Scores";
+  const distributionChart = document.createElement("div");
+  distributionChart.className = "chart chart--medium spread-detail__chart";
+
+  const statsHeading = document.createElement("h4");
+  statsHeading.className = "spread-detail__section-title";
+  statsHeading.textContent = "Distribution Stats";
+  const statsGrid = renderSpreadStatsGrid(stats, latestPoint);
+
+  dom.spreadDetailDrawer.append(
+    header,
+    distributionHeading,
+    distributionChart,
+    statsHeading,
+    statsGrid
+  );
+
+  renderSpreadDistributionChart(distributionChart, stats);
+}
+
+function renderSpreadDistributionChart(container, stats) {
+  if (!window.Plotly) {
+    container.textContent = "Chart unavailable";
+    return;
+  }
+
+  if (
+    stats.status !== "ready" ||
+    !stats.normalizedChanges.length ||
+    !Number.isFinite(stats.zScore)
+  ) {
+    renderEmptyChart(
+      container,
+      stats.status === "insufficient_history" || stats.status === "no_data"
+        ? "Insufficient post-2006 daily-change history."
+        : "Distribution unavailable because volatility is zero or missing."
+    );
+    return;
+  }
+
+  const palette = currentPalette();
+  const zValues = stats.normalizedChanges.filter(Number.isFinite);
+  const currentLineColor = stats.currentChange >= 0 ? palette.positive : palette.negative;
+  const displayRange = [-4.5, 4.5];
+  const zMin = Math.min(...zValues);
+  const zMax = Math.max(...zValues);
+  const binSize = (zMax - zMin) / 50;
+
+  const normalGrid = buildLinearRange(displayRange[0], displayRange[1], 500);
+  renderPlot(
+    container,
+    [
+      {
+        type: "histogram",
+        name: "Empirical distribution",
+        x: zValues,
+        histnorm: "probability density",
+        nbinsx: 50,
+        xbins: {
+          start: zMin,
+          end: zMax,
+          size: binSize,
+        },
+        marker: {
+          color: palette.latest,
+          opacity: 0.58,
+          line: {
+            color: palette.latest,
+            width: 0.5,
+          },
+        },
+        hovertemplate: "Z %{x:.2f}<br>Density %{y:.3f}<extra></extra>",
+      },
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "Standard normal",
+        x: normalGrid,
+        y: normalGrid.map(standardNormalPdf),
+        line: {
+          color: palette.comparison,
+          width: 2,
+        },
+        hovertemplate: "Z %{x:.2f}<br>Normal density %{y:.3f}<extra></extra>",
+      },
+    ],
+    buildBaseLayout({
+      margin: { t: 20, r: 18, b: 54, l: 62 },
+      bargap: 0.02,
+      xaxis: {
+        title: { text: "Z-score of historical 1D changes" },
+        range: displayRange,
+        zeroline: false,
+      },
+      yaxis: {
+        title: { text: "Density" },
+        rangemode: "tozero",
+      },
+      legend: {
+        orientation: "h",
+        x: 0,
+        y: 1.12,
+      },
+      shapes: [
+        {
+          type: "line",
+          x0: stats.zScore,
+          x1: stats.zScore,
+          y0: 0,
+          y1: 1,
+          xref: "x",
+          yref: "paper",
+          line: {
+            color: currentLineColor,
+            width: 2,
+            dash: "dash",
+          },
+        },
+      ],
+      annotations: [
+        {
+          x: 0.01,
+          y: 0.98,
+          xref: "paper",
+          yref: "paper",
+          xanchor: "left",
+          yanchor: "top",
+          align: "left",
+          text: "Z-scored historical 1D changes<br>mean = 0 by construction",
+          showarrow: false,
+          font: { color: palette.axis, size: 12 },
+        },
+        {
+          x: stats.zScore,
+          y: 1,
+          xref: "x",
+          yref: "paper",
+          yanchor: "bottom",
+          text: `Current ${formatZScore(stats.zScore)}`,
+          showarrow: false,
+          font: { color: currentLineColor, size: 12 },
+        },
+      ],
     })
-    .filter(Boolean);
+  );
+}
+
+function renderSpreadStatsGrid(stats, latestPoint) {
+  const statsGrid = document.createElement("div");
+  statsGrid.className = "spread-detail__stats";
+  [
+    ["Current Level", formatOptionalBasisPoints(latestPoint?.value)],
+    ["1D Change", formatOptionalBasisPoints(stats.currentChange)],
+    ["Avg Magnitude Historical 1D Change (raw bp)", formatUnsignedBasisPoints(stats.meanAbsChange, 2)],
+    ["Std Dev Historical 1D Change (raw bp)", formatUnsignedBasisPoints(stats.stdChange, 2)],
+    ["Z-Score", formatStatsZScore(stats)],
+    ["Empirical Percentile", formatStatsPercentile(stats)],
+    ["Sample Start", stats.sampleStartDate ? formatHumanDate(stats.sampleStartDate) : "--"],
+    ["Sample End", stats.sampleEndDate ? formatHumanDate(stats.sampleEndDate) : "--"],
+    ["Observations", stats.observations ? stats.observations.toLocaleString() : "0"],
+  ].forEach(([label, value]) => {
+    statsGrid.append(createSpreadDetailStatRow(label, value));
+  });
+
+  return statsGrid;
+}
+
+function createSpreadDetailStatRow(label, value) {
+  const row = document.createElement("p");
+  row.className = "spread-detail__stat-row";
+
+  const labelNode = document.createElement("span");
+  labelNode.className = "spread-detail__stat-label";
+  labelNode.textContent = `${label}:`;
+
+  const valueNode = document.createElement("strong");
+  valueNode.className = "spread-detail__stat-value";
+  valueNode.textContent = value || "--";
+
+  row.append(labelNode, valueNode);
+  return row;
+}
+
+function formatMoveStatsLine(stats) {
+  if (stats.status === "insufficient_history") {
+    return "Insufficient history";
+  }
+
+  if (stats.status !== "ready") {
+    return "Z: n/a";
+  }
+
+  const zPart = `Z: ${formatZScore(stats.zScore)}`;
+  const percentilePart = formatPercentile(stats.empiricalPercentile);
+  return percentilePart === "--" ? zPart : `${zPart} \u00b7 ${percentilePart}`;
+}
+
+function formatMoveInterpretationLine(spread, stats, severityLabel) {
+  if (stats.status === "insufficient_history") {
+    return `${stats.observations.toLocaleString()} / ${stats.minObservations} observations`;
+  }
+
+  if (stats.status === "zero_volatility") {
+    return "No measurable volatility";
+  }
+
+  return getDirectionalInterpretation(spread, stats.currentChange, severityLabel);
+}
+
+function formatZScore(value) {
+  if (!Number.isFinite(value)) {
+    return "n/a";
+  }
+
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}\u03c3`;
+}
+
+function formatStatsZScore(stats) {
+  return stats.status === "ready" ? formatZScore(stats.zScore) : "n/a";
+}
+
+function formatPercentile(value) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+
+  return `${formatOrdinal(Math.round(clampNumber(value, 0, 100)))} pctile`;
+}
+
+function formatStatsPercentile(stats) {
+  return stats.status === "ready" ? formatPercentile(stats.empiricalPercentile) : "--";
+}
+
+function formatOrdinal(value) {
+  const remainder = value % 100;
+  if (remainder >= 11 && remainder <= 13) {
+    return `${value}th`;
+  }
+
+  const suffixByLastDigit = {
+    1: "st",
+    2: "nd",
+    3: "rd",
+  };
+
+  return `${value}${suffixByLastDigit[value % 10] || "th"}`;
+}
+
+function formatOptionalBasisPoints(value) {
+  return Number.isFinite(value) ? formatBasisPoints(value) : "--";
+}
+
+function formatUnsignedBasisPoints(value, decimals = 1) {
+  return Number.isFinite(value) ? `${value.toFixed(decimals)} bp` : "--";
+}
+
+function buildLinearRange(start, end, count) {
+  const steps = Math.max(count - 1, 1);
+  return Array.from({ length: count }, (_item, index) => start + ((end - start) * index) / steps);
+}
+
+function standardNormalPdf(value) {
+  return Math.exp(-0.5 * value ** 2) / Math.sqrt(2 * Math.PI);
 }
 
 function renderHistoricalYieldChart() {
@@ -1951,4 +2281,5 @@ export {
   removeSpreadDefinition,
   resetSpreadDefinitions,
   renderSpreadControls,
+  selectSpreadDefinition,
 };

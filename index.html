@@ -16,7 +16,7 @@
     />
     <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <script type="module" src="script.js?v=spread-controls-20260603-8"></script>
+    <script type="module" src="script.js?v=spread-stats-20260608-5"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -223,7 +223,15 @@
             Showing default spread set. Butterfly = 2 x second leg - first leg - third leg.
           </p>
 
-          <div class="spread-grid" id="spreadGrid"></div>
+          <div class="spread-monitor-layout">
+            <div class="spread-grid" id="spreadGrid"></div>
+            <aside
+              class="spread-detail-drawer"
+              id="spreadDetailDrawer"
+              aria-label="Spread distribution detail"
+              hidden
+            ></aside>
+          </div>
         </section>
 
         <section class="panel panel--wide">

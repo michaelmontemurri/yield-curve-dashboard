@@ -11,6 +11,7 @@ const CONFIG = {
   pcaDefaultRollingYears: 5,
   pcaRollingMinRows: 60,
   sparklineLookback: 260,
+  spreadStatsSampleStart: "2006-02-09",
   defaultHistoryMaturities: ["2Y", "10Y", "30Y"],
   defaultComparisonOffsetDays: 1,
   storageKeys: {
@@ -117,6 +118,7 @@ const state = {
   spreadDefs: SPREAD_DEFS.map((spread) => ({ ...spread })),
   spreadSeries: {},
   extremeSpreadDates: {},
+  selectedSpreadId: null,
   historyMaturities: new Set(CONFIG.defaultHistoryMaturities),
   historyChart: {
     rangePreset: "1y",
