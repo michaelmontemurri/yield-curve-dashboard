@@ -117,19 +117,43 @@ Selected cards persist in local storage. `Reset Defaults` restores `2s10s`, `5s3
 
 ### Treasury Issuance Dashboard
 
-The Issuance page is `issuance.html`. It loads recent marketable-security auction rows from TreasuryDirect's auction query service and keeps the dashboard fully static in the browser.
+The Issuance page is `issuance.html`. It loads Treasury marketable-security auction rows from TreasuryDirect's auction query service and keeps the dashboard fully static in the browser. The page is meant to make Treasury supply, auction demand, bidder allocation, and upcoming issuance easier to monitor from the same local app as the yield-curve dashboard.
 
-The page includes:
+The top of the page shows the latest auction date, row count, active data source, refresh/export actions, and filters for:
 
-- Summary cards for gross offering amount, completed auction count, weighted average bid-to-cover, indirect bidder share, and announced upcoming offering amount.
-- Filters for completed lookback window, security type, announced auctions, and reopenings.
-- Monthly offering by security type.
-- Bid-to-cover versus offering size.
+- Completed auction lookback window.
+- Security type, including Bills, CMBs, Notes, Bonds, TIPS, and FRNs when present in the loaded data.
+- Announced upcoming auctions.
+- Reopenings.
+
+Summary cards aggregate the filtered auction set:
+
+- Gross offering amount.
+- Completed auction count.
+- Weighted average bid-to-cover.
+- Indirect accepted share.
+- Announced upcoming offering amount.
+
+The issuance charts cover:
+
+- Monthly offering by security type, for seeing how the supply mix changes through time.
+- Bid-to-cover versus offering size, with optional maturity filtering.
 - Accepted bidder allocation across primary dealers, indirect bidders, and direct bidders.
-- Offering amount by term.
-- Upcoming auction table with announcement/result links where TreasuryDirect provides file names.
-- Recent auction tape for completed auctions.
+- Offering amount by term, for viewing the maturity profile of recent supply.
+
+The page also includes:
+
+- Upcoming auction table with announcement and result links where TreasuryDirect provides file names.
+- Recent completed auction tape with offering amount, result rate, bid-to-cover, bidder shares, and reopening status.
 - CSV export for the currently filtered auction rows.
+
+![Issuance dashboard overview](images/auctions_overview.png)
+
+![Issuance demand and bidder allocation](images/bid-to-cover.png)
+
+![Issuance offerings](images/offerings.png)
+
+![Issuance auction tables](images/recent_auction_results.png)
 
 ## PCA Loadings
 
