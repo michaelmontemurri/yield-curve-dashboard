@@ -9,7 +9,7 @@ import {
   persistOverlayDates,
   persistSpreadDefinitions,
   formatButterflyLabel,
-} from "./core.js?v=spread-stats-20260608-5";
+} from "./core.js?v=maturity-change-table-20260611-2";
 import {
   clampIsoDate,
   clampNumber,
@@ -26,7 +26,7 @@ import {
   shiftIsoDate,
   shortPcaLabel,
   transformationLabel,
-} from "./utils.js?v=spread-stats-20260608-5";
+} from "./utils.js?v=maturity-change-table-20260611-2";
 import {
   buildActivePcaResult,
   getCurrentBaselineModel,
@@ -34,19 +34,19 @@ import {
   validateComponentInterpretation,
   validateDifferencedIndexAlignment,
   validateExplainedVariance,
-} from "./pca.js?v=spread-stats-20260608-5";
+} from "./pca.js?v=maturity-change-table-20260611-2";
 import {
   computeDailyChangeStats,
   computeSpreadSeries,
   getDirectionalInterpretation,
   getMoveSeverityLabel,
-} from "./spreads.js?v=spread-stats-20260608-5";
-import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=spread-stats-20260608-5";
+} from "./spreads.js?v=maturity-change-table-20260611-2";
+import { applyDataset, parseTreasuryCsv, prepareRecords, setBusy, setStatus } from "./app.js?v=maturity-change-table-20260611-4";
 import {
   getRegimeOptionLabel,
   getRegimePresetDefinitions,
   resolveRegimePreset,
-} from "./regimes.js?v=spread-stats-20260608-5";
+} from "./regimes.js?v=maturity-change-table-20260611-2";
 
 // === Rendering ===
 function renderAll() {
@@ -58,6 +58,7 @@ function renderAll() {
     }
   };
 
+  safeRender(renderMaturityChangeTable);
   safeRender(renderComparisonPanel);
   safeRender(renderSpreadControls);
   safeRender(renderSpreadCards);
@@ -83,6 +84,7 @@ function renderEmptyDashboard() {
   renderEmptyChart(dom.pc1Chart, message);
   renderEmptyChart(dom.pc2Chart, message);
   renderEmptyChart(dom.pc3Chart, message);
+  renderMaturityChangeTable();
   renderSpreadControls();
   renderSpreadCards();
 }
@@ -91,6 +93,121 @@ function renderComparisonPanel() {
   renderOverlayPills();
   renderComparisonCurveChart();
   renderDifferenceChart();
+}
+
+function renderMaturityChangeTable() {
+  if (!dom.maturityChangeTable) {
+    return;
+  }
+
+  dom.maturityChangeTable.innerHTML = "";
+
+  const latest = state.latestRecord;
+  const prior = resolvePriorCurveRecord(latest?.date);
+
+  if (!latest || !prior) {
+    if (dom.maturityChangeMeta) {
+      dom.maturityChangeMeta.textContent = "--";
+    }
+    renderMaturityChangeEmptyRow("Daily changes will appear after data loads.");
+    return;
+  }
+
+  if (dom.maturityChangeMeta) {
+    dom.maturityChangeMeta.textContent = `${formatHumanDate(latest.date)} vs ${formatHumanDate(prior.date)}`;
+  }
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  const labelHeader = document.createElement("th");
+  labelHeader.scope = "col";
+  labelHeader.textContent = "Maturity";
+  headerRow.append(labelHeader);
+
+  MATURITY_DEFS.forEach((definition) => {
+    const header = document.createElement("th");
+    header.scope = "col";
+    header.textContent = definition.label;
+    headerRow.append(header);
+  });
+  thead.append(headerRow);
+
+  const tbody = document.createElement("tbody");
+  const changeRow = document.createElement("tr");
+  changeRow.className = "maturity-change-table__change-row";
+  const changeRowHeader = document.createElement("th");
+  changeRowHeader.scope = "row";
+  changeRowHeader.textContent = "1D Change";
+  changeRow.append(changeRowHeader);
+
+  MATURITY_DEFS.forEach((definition) => {
+    const cell = document.createElement("td");
+    const latestYield = latest[definition.key];
+    const priorYield = prior[definition.key];
+
+    if (!Number.isFinite(latestYield) || !Number.isFinite(priorYield)) {
+      cell.textContent = "--";
+    } else {
+      const change = (latestYield - priorYield) * 100;
+      cell.textContent = formatBasisPoints(change);
+      cell.classList.toggle("is-positive", change > 0);
+      cell.classList.toggle("is-negative", change < 0);
+      cell.classList.toggle("is-neutral", change === 0);
+    }
+
+    changeRow.append(cell);
+  });
+
+  const levelRow = document.createElement("tr");
+  levelRow.className = "maturity-change-table__level-row";
+  const levelRowHeader = document.createElement("th");
+  levelRowHeader.scope = "row";
+  levelRowHeader.textContent = "Yield Level";
+  levelRow.append(levelRowHeader);
+
+  MATURITY_DEFS.forEach((definition) => {
+    const cell = document.createElement("td");
+    const latestYield = latest[definition.key];
+    cell.textContent = Number.isFinite(latestYield) ? formatYieldLevel(latestYield) : "--";
+    levelRow.append(cell);
+  });
+
+  tbody.append(changeRow, levelRow);
+  dom.maturityChangeTable.append(thead, tbody);
+}
+
+function renderMaturityChangeEmptyRow(message) {
+  const tbody = document.createElement("tbody");
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.colSpan = MATURITY_DEFS.length + 1;
+  cell.className = "maturity-change-table__empty";
+  cell.textContent = message;
+  row.append(cell);
+  tbody.append(row);
+  dom.maturityChangeTable.append(tbody);
+}
+
+function resolvePriorCurveRecord(latestDate) {
+  if (!latestDate || !Array.isArray(state.records) || state.records.length < 2) {
+    return null;
+  }
+
+  for (let index = state.records.length - 1; index >= 0; index -= 1) {
+    const record = state.records[index];
+    if (
+      record.date < latestDate &&
+      MATURITY_DEFS.some((definition) => Number.isFinite(record[definition.key]))
+    ) {
+      return record;
+    }
+  }
+
+  return null;
+}
+
+function formatYieldLevel(value) {
+  return `${value.toFixed(2)}%`;
 }
 
 function renderComparisonCurveChart() {

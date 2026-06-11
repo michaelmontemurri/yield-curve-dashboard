@@ -552,6 +552,7 @@ input {
 
 .chart--spark {
   min-height: 94px;
+  overflow: hidden;
 }
 
 .chart--heatmap {
@@ -562,6 +563,126 @@ input {
   margin-top: 10px;
   border-top: 1px solid var(--panel-border);
   padding-top: 14px;
+}
+
+.maturity-change-panel {
+  padding-bottom: 22px;
+}
+
+.maturity-change-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.maturity-change-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  table-layout: auto;
+}
+
+.maturity-change-table th,
+.maturity-change-table td {
+  padding: 14px 10px;
+  border-right: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.maturity-change-table th:last-child,
+.maturity-change-table td:last-child {
+  border-right: 0;
+}
+
+.maturity-change-table thead th {
+  color: var(--text-soft);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.maturity-change-table thead th:first-child,
+.maturity-change-table tbody th {
+  min-width: 124px;
+}
+
+.maturity-change-table thead th:not(:first-child),
+.maturity-change-table td {
+  min-width: 96px;
+}
+
+.maturity-change-table thead th:not(:first-child) {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.maturity-change-table tbody th {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.maturity-change-table td {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.maturity-change-table__change-row td {
+  padding-top: 18px;
+  padding-bottom: 18px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.maturity-change-table__change-row td.is-positive {
+  background: linear-gradient(180deg, rgba(23, 100, 62, 0.18), rgba(23, 100, 62, 0.09));
+  color: var(--success);
+  box-shadow: inset 0 0 0 1px rgba(23, 100, 62, 0.12);
+}
+
+.maturity-change-table__change-row td.is-negative {
+  background: linear-gradient(180deg, rgba(154, 47, 47, 0.18), rgba(154, 47, 47, 0.09));
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px rgba(154, 47, 47, 0.12);
+}
+
+.maturity-change-table__change-row td.is-neutral,
+.maturity-change-table__empty {
+  color: var(--text-muted);
+}
+
+.maturity-change-table__level-row td {
+  color: var(--text-muted);
+  font-size: 0.98rem;
+  letter-spacing: -0.01em;
+}
+
+.maturity-change-table tr:last-child th,
+.maturity-change-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.maturity-change-table__empty {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  text-align: center;
 }
 
 .spread-grid {
@@ -578,8 +699,7 @@ input {
 }
 
 .spread-monitor-layout.has-detail {
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 0.56fr);
-  gap: 30px;
+  grid-template-columns: 1fr;
 }
 
 .spread-controls {
@@ -690,10 +810,9 @@ input {
 }
 
 .spread-detail-drawer {
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
-  overflow: auto;
+  position: static;
+  max-height: none;
+  overflow: visible;
   padding: 20px;
   border-radius: var(--radius-md);
   border: 1px solid var(--panel-border);
@@ -933,6 +1052,30 @@ input {
   .panel__meta {
     width: 100%;
     text-align: left;
+  }
+
+  .maturity-change-table {
+    min-width: max-content;
+  }
+
+  .maturity-change-table th,
+  .maturity-change-table td {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .maturity-change-table thead th:first-child,
+  .maturity-change-table tbody th {
+    min-width: 118px;
+  }
+
+  .maturity-change-table thead th:not(:first-child),
+  .maturity-change-table td {
+    min-width: 90px;
+  }
+
+  .maturity-change-table__change-row td {
+    font-size: 1.08rem;
   }
 
   .spread-detail__header {

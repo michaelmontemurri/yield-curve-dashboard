@@ -1,4 +1,4 @@
-import { CONFIG, MATURITY_DEFS, dom, state } from "./core.js?v=spread-stats-20260608-5";
+import { CONFIG, MATURITY_DEFS, dom, state } from "./core.js?v=maturity-change-table-20260611-2";
 import {
   average,
   clampNumber,
@@ -8,8 +8,8 @@ import {
   formatHumanDate,
   maturityMonths,
   shiftIsoDate,
-} from "./utils.js?v=spread-stats-20260608-5";
-import { isDateInRanges, resolveRegimePreset } from "./regimes.js?v=spread-stats-20260608-5";
+} from "./utils.js?v=maturity-change-table-20260611-2";
+import { isDateInRanges, resolveRegimePreset } from "./regimes.js?v=maturity-change-table-20260611-2";
 
 // === PCA And Statistics ===
 function computeLegacyPca(records) {

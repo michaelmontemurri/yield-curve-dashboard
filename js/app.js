@@ -7,10 +7,10 @@ import {
   loadSpreadDefinitions,
   loadOverlayDates,
   persistHistoryMaturities,
-} from "./core.js?v=spread-stats-20260608-5";
-import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=spread-stats-20260608-5";
-import { buildPcaContext } from "./pca.js?v=spread-stats-20260608-5";
-import { computeSpreadSeries } from "./spreads.js?v=spread-stats-20260608-5";
+} from "./core.js?v=maturity-change-table-20260611-2";
+import { dedupe, fetchText, isoDateToTimestamp, shiftIsoDate } from "./utils.js?v=maturity-change-table-20260611-2";
+import { buildPcaContext } from "./pca.js?v=maturity-change-table-20260611-2";
+import { computeSpreadSeries } from "./spreads.js?v=maturity-change-table-20260611-2";
 import {
   addOverlayDate,
   applyPcaModeSelection,
@@ -50,7 +50,7 @@ import {
   resetSpreadDefinitions,
   renderSpreadControls,
   selectSpreadDefinition,
-} from "./rendering.js?v=spread-stats-20260608-5";
+} from "./rendering.js?v=maturity-change-table-20260611-4";
 
 // === Application Bootstrap ===
 document.addEventListener("DOMContentLoaded", init);
@@ -129,6 +129,8 @@ function cacheDom() {
   dom.toggleDifferenceBtn = document.getElementById("toggleDifferenceBtn");
   dom.comparisonRequestedDate = document.getElementById("comparisonRequestedDate");
   dom.comparisonActualDate = document.getElementById("comparisonActualDate");
+  dom.maturityChangeMeta = document.getElementById("maturityChangeMeta");
+  dom.maturityChangeTable = document.getElementById("maturityChangeTable");
   dom.overlayPills = document.getElementById("overlayPills");
   dom.presetButtons = document.getElementById("presetButtons");
   dom.comparisonCurveChart = document.getElementById("comparisonCurveChart");

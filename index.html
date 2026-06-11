@@ -14,9 +14,9 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=maturity-change-table-20260611-8" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <script type="module" src="script.js?v=spread-stats-20260608-5"></script>
+    <script type="module" src="script.js?v=maturity-change-table-20260611-4"></script>
   </head>
   <body>
     <div class="app-shell">
@@ -101,6 +101,23 @@
       </section>
 
       <main class="dashboard-grid">
+        <section class="panel panel--wide maturity-change-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Daily Moves</p>
+              <h2>Yield Changes By Maturity</h2>
+            </div>
+            <div class="panel__meta">
+              <span class="panel__meta-label">Latest Vs Prior</span>
+              <strong id="maturityChangeMeta">--</strong>
+            </div>
+          </div>
+
+          <div class="maturity-change-table-wrap">
+            <table class="maturity-change-table" id="maturityChangeTable"></table>
+          </div>
+        </section>
+
         <section class="panel panel--wide">
           <div class="panel__header">
             <div>
